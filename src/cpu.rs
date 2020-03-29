@@ -25,6 +25,16 @@ pub enum JumpFlag {
 
 /* Helper Functions */
 
+fn _set(location: u8, v: u8) -> u8 {
+    v & (1 << location)
+}
+
+/* Resets to 0 the specified bit in the specified register r
+ */
+fn _res(location: u8, v: u8) -> u8 {
+    v & !(1 << location)
+}
+
 /* Copies the complement of the contents of the specified bit in register r to the Z flag of the
  * program status word (PSW).
 */
@@ -1310,6 +1320,49 @@ pub fn bit_ar16(gameboy: &mut Gameboy, n:u8, r: Registers16) {
     gameboy.advance_cycles(16);
 }
 
+pub fn res_r8(gameboy: &mut Gameboy, n:u8, r: Registers8) {
+    let value = gameboy.registers.get8(r);
+
+    let out = _res(n, value);
+
+    gameboy.registers.set8(r, out);
+
+    gameboy.advance_cycles(8);
+}
+
+pub fn res_ar16(gameboy: &mut Gameboy, n:u8, r: Registers16) {
+    let address = gameboy.registers.get16(r);
+    let value = gameboy.mmu.get8(address);
+
+    let out = _res(n, value);
+
+    gameboy.mmu.set8(address, out);
+
+    gameboy.advance_cycles(16);
+}
+
+pub fn set_r8(gameboy: &mut Gameboy, n:u8, r: Registers8) {
+    let value = gameboy.registers.get8(r);
+
+    let out = _set(n, value);
+
+    gameboy.registers.set8(r, out);
+
+    gameboy.advance_cycles(8);
+}
+
+pub fn set_ar16(gameboy: &mut Gameboy, n:u8, r: Registers16) {
+    let address = gameboy.registers.get16(r);
+    let value = gameboy.mmu.get8(address);
+
+    let out = _set(n, value);
+
+    gameboy.mmu.set8(address, out);
+
+    gameboy.advance_cycles(16);
+}
+
+
 pub fn execute(mut gameboy: &mut Gameboy, opcode: u16) {
     match opcode {
         0x0000 => nop(&mut gameboy),
@@ -1741,6 +1794,150 @@ pub fn execute(mut gameboy: &mut Gameboy, opcode: u16) {
         0x017D => bit_r8(gameboy, 7, Registers8::L),
         0x017E => bit_ar16(gameboy, 7, Registers16::HL),
         0x017F => bit_r8(gameboy, 7, Registers8::A),
+
+        0x0180 => res_r8(gameboy, 0, Registers8::B),
+        0x0181 => res_r8(gameboy, 0, Registers8::C),
+        0x0182 => res_r8(gameboy, 0, Registers8::D),
+        0x0183 => res_r8(gameboy, 0, Registers8::E),
+        0x0184 => res_r8(gameboy, 0, Registers8::H),
+        0x0185 => res_r8(gameboy, 0, Registers8::L),
+        0x0186 => res_ar16(gameboy, 0, Registers16::HL),
+        0x0187 => res_r8(gameboy, 0, Registers8::A),
+
+        0x0188 => res_r8(gameboy, 1, Registers8::B),
+        0x0189 => res_r8(gameboy, 1, Registers8::C),
+        0x018A => res_r8(gameboy, 1, Registers8::D),
+        0x018B => res_r8(gameboy, 1, Registers8::E),
+        0x018C => res_r8(gameboy, 1, Registers8::H),
+        0x018D => res_r8(gameboy, 1, Registers8::L),
+        0x018E => res_ar16(gameboy, 1, Registers16::HL),
+        0x018F => res_r8(gameboy, 1, Registers8::A),
+
+        0x0190 => res_r8(gameboy, 2, Registers8::B),
+        0x0191 => res_r8(gameboy, 2, Registers8::C),
+        0x0192 => res_r8(gameboy, 2, Registers8::D),
+        0x0193 => res_r8(gameboy, 2, Registers8::E),
+        0x0194 => res_r8(gameboy, 2, Registers8::H),
+        0x0195 => res_r8(gameboy, 2, Registers8::L),
+        0x0196 => res_ar16(gameboy, 2, Registers16::HL),
+        0x0197 => res_r8(gameboy, 2, Registers8::A),
+
+        0x0198 => res_r8(gameboy, 3, Registers8::B),
+        0x0199 => res_r8(gameboy, 3, Registers8::C),
+        0x019A => res_r8(gameboy, 3, Registers8::D),
+        0x019B => res_r8(gameboy, 3, Registers8::E),
+        0x019C => res_r8(gameboy, 3, Registers8::H),
+        0x019D => res_r8(gameboy, 3, Registers8::L),
+        0x019E => res_ar16(gameboy, 3, Registers16::HL),
+        0x019F => res_r8(gameboy, 3, Registers8::A),
+
+        0x01A0 => res_r8(gameboy, 4, Registers8::B),
+        0x01A1 => res_r8(gameboy, 4, Registers8::C),
+        0x01A2 => res_r8(gameboy, 4, Registers8::D),
+        0x01A3 => res_r8(gameboy, 4, Registers8::E),
+        0x01A4 => res_r8(gameboy, 4, Registers8::H),
+        0x01A5 => res_r8(gameboy, 4, Registers8::L),
+        0x01A6 => res_ar16(gameboy, 4, Registers16::HL),
+        0x01A7 => res_r8(gameboy, 4, Registers8::A),
+
+        0x01A8 => res_r8(gameboy, 5, Registers8::B),
+        0x01A9 => res_r8(gameboy, 5, Registers8::C),
+        0x01AA => res_r8(gameboy, 5, Registers8::D),
+        0x01AB => res_r8(gameboy, 5, Registers8::E),
+        0x01AC => res_r8(gameboy, 5, Registers8::H),
+        0x01AD => res_r8(gameboy, 5, Registers8::L),
+        0x01AE => res_ar16(gameboy, 5, Registers16::HL),
+        0x01AF => res_r8(gameboy, 5, Registers8::A),
+
+        0x01B0 => res_r8(gameboy, 6, Registers8::B),
+        0x01B1 => res_r8(gameboy, 6, Registers8::C),
+        0x01B2 => res_r8(gameboy, 6, Registers8::D),
+        0x01B3 => res_r8(gameboy, 6, Registers8::E),
+        0x01B4 => res_r8(gameboy, 6, Registers8::H),
+        0x01B5 => res_r8(gameboy, 6, Registers8::L),
+        0x01B6 => res_ar16(gameboy, 6, Registers16::HL),
+        0x01B7 => res_r8(gameboy, 6, Registers8::A),
+
+        0x01B8 => res_r8(gameboy, 7, Registers8::B),
+        0x01B9 => res_r8(gameboy, 7, Registers8::C),
+        0x01BA => res_r8(gameboy, 7, Registers8::D),
+        0x01BB => res_r8(gameboy, 7, Registers8::E),
+        0x01BC => res_r8(gameboy, 7, Registers8::H),
+        0x01BD => res_r8(gameboy, 7, Registers8::L),
+        0x01BE => res_ar16(gameboy, 7, Registers16::HL),
+        0x01BF => res_r8(gameboy, 7, Registers8::A),
+
+        0x01C0 => set_r8(gameboy, 0, Registers8::B),
+        0x01C1 => set_r8(gameboy, 0, Registers8::C),
+        0x01C2 => set_r8(gameboy, 0, Registers8::D),
+        0x01C3 => set_r8(gameboy, 0, Registers8::E),
+        0x01C4 => set_r8(gameboy, 0, Registers8::H),
+        0x01C5 => set_r8(gameboy, 0, Registers8::L),
+        0x01C6 => set_ar16(gameboy, 0, Registers16::HL),
+        0x01C7 => set_r8(gameboy, 0, Registers8::A),
+
+        0x01C8 => set_r8(gameboy, 1, Registers8::B),
+        0x01C9 => set_r8(gameboy, 1, Registers8::C),
+        0x01CA => set_r8(gameboy, 1, Registers8::D),
+        0x01CB => set_r8(gameboy, 1, Registers8::E),
+        0x01CC => set_r8(gameboy, 1, Registers8::H),
+        0x01CD => set_r8(gameboy, 1, Registers8::L),
+        0x01CE => set_ar16(gameboy, 1, Registers16::HL),
+        0x01CF => set_r8(gameboy, 1, Registers8::A),
+
+        0x01D0 => set_r8(gameboy, 2, Registers8::B),
+        0x01D1 => set_r8(gameboy, 2, Registers8::C),
+        0x01D2 => set_r8(gameboy, 2, Registers8::D),
+        0x01D3 => set_r8(gameboy, 2, Registers8::E),
+        0x01D4 => set_r8(gameboy, 2, Registers8::H),
+        0x01D5 => set_r8(gameboy, 2, Registers8::L),
+        0x01D6 => set_ar16(gameboy, 2, Registers16::HL),
+        0x01D7 => set_r8(gameboy, 2, Registers8::A),
+
+        0x01D8 => set_r8(gameboy, 3, Registers8::B),
+        0x01D9 => set_r8(gameboy, 3, Registers8::C),
+        0x01DA => set_r8(gameboy, 3, Registers8::D),
+        0x01DB => set_r8(gameboy, 3, Registers8::E),
+        0x01DC => set_r8(gameboy, 3, Registers8::H),
+        0x01DD => set_r8(gameboy, 3, Registers8::L),
+        0x01DE => set_ar16(gameboy, 3, Registers16::HL),
+        0x01DF => set_r8(gameboy, 3, Registers8::A),
+
+        0x01E0 => set_r8(gameboy, 4, Registers8::B),
+        0x01E1 => set_r8(gameboy, 4, Registers8::C),
+        0x01E2 => set_r8(gameboy, 4, Registers8::D),
+        0x01E3 => set_r8(gameboy, 4, Registers8::E),
+        0x01E4 => set_r8(gameboy, 4, Registers8::H),
+        0x01E5 => set_r8(gameboy, 4, Registers8::L),
+        0x01E6 => set_ar16(gameboy, 4, Registers16::HL),
+        0x01E7 => set_r8(gameboy, 4, Registers8::A),
+
+        0x01E8 => set_r8(gameboy, 5, Registers8::B),
+        0x01E9 => set_r8(gameboy, 5, Registers8::C),
+        0x01EA => set_r8(gameboy, 5, Registers8::D),
+        0x01EB => set_r8(gameboy, 5, Registers8::E),
+        0x01EC => set_r8(gameboy, 5, Registers8::H),
+        0x01ED => set_r8(gameboy, 5, Registers8::L),
+        0x01EE => set_ar16(gameboy, 5, Registers16::HL),
+        0x01EF => set_r8(gameboy, 5, Registers8::A),
+
+        0x01F0 => set_r8(gameboy, 6, Registers8::B),
+        0x01F1 => set_r8(gameboy, 6, Registers8::C),
+        0x01F2 => set_r8(gameboy, 6, Registers8::D),
+        0x01F3 => set_r8(gameboy, 6, Registers8::E),
+        0x01F4 => set_r8(gameboy, 6, Registers8::H),
+        0x01F5 => set_r8(gameboy, 6, Registers8::L),
+        0x01F6 => set_ar16(gameboy, 6, Registers16::HL),
+        0x01F7 => set_r8(gameboy, 6, Registers8::A),
+
+        0x01F8 => set_r8(gameboy, 7, Registers8::B),
+        0x01F9 => set_r8(gameboy, 7, Registers8::C),
+        0x01FA => set_r8(gameboy, 7, Registers8::D),
+        0x01FB => set_r8(gameboy, 7, Registers8::E),
+        0x01FC => set_r8(gameboy, 7, Registers8::H),
+        0x01FD => set_r8(gameboy, 7, Registers8::L),
+        0x01FE => set_ar16(gameboy, 7, Registers16::HL),
+        0x01FF => set_r8(gameboy, 7, Registers8::A),
 
         _ => panic!("not implemented"),
     }
