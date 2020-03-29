@@ -25,16 +25,58 @@ pub enum JumpFlag {
 
 /* Helper Functions */
 
-/* shift right but retain original value
+/* Copies the complement of the contents of the specified bit in register r to the Z flag of the
+ * program status word (PSW).
+*/
+fn _bit(gameboy: &mut Gameboy, location:u8, v:u8) {
+    let out = bytes::check_bit(v, location);
+
+    gameboy.registers.set_flag(Flag::Z, !out);
+    gameboy.registers.set_flag(Flag::N, false);
+    gameboy.registers.set_flag(Flag::H, false);
+}
+
+fn _swap(gameboy: &mut Gameboy, v: u8) -> u8 {
+    let high = v << 4;
+    let low = v >> 4;
+
+    let out = high | low;
+
+    gameboy.registers.set_flag(Flag::Z, out == 0);
+    gameboy.registers.set_flag(Flag::N, false);
+    gameboy.registers.set_flag(Flag::H, false);
+    gameboy.registers.set_flag(Flag::C, false);
+
+    out
+}
+
+/* Shifts v to the left. That is, the contents of bit 0 are copied to bit 1 and the previous
+ * contents of bit 1 (the contents before the copy operation) are copied to bit 2.  The same
+ * operation is repeated in sequence for the rest of the operand. The content of bit 7 is copied to
+ * CY, and bit 0 is reset.
+ */
+fn _sla(gameboy:&mut Gameboy, v: u8) -> u8 {
+    let out = v << 1;
+
+    gameboy.registers.set_flag(Flag::Z, out == 0);
+    gameboy.registers.set_flag(Flag::N, false);
+    gameboy.registers.set_flag(Flag::H, false);
+    gameboy.registers.set_flag(Flag::C, bytes::check_bit(v, 7));
+
+    out
+}
+
+/* Shifts the contents of v to the right. That is, the contents of bit 7 are copied to bit
+ * 6 and the previous contents of bit 6 (the contents before the copy operation) are copied to bit
+ * 5. The same operation is repeated in sequence for the rest of the operand . The contents of bit
+ * 0 are copied to CY, and the content of bit 7 is unchanged.
  */
 fn _sra(gameboy:&mut Gameboy, v: u8) -> u8 {
     let c = bytes::check_bit(v, 7);
 
     let mut out = v >> 1;
     
-    if c {
-        out = out | 0x80;
-    }
+    bytes::set_bit(out, 7, c);
 
     gameboy.registers.set_flag(Flag::Z, out == 0);
     gameboy.registers.set_flag(Flag::N, false);
@@ -44,7 +86,10 @@ fn _sra(gameboy:&mut Gameboy, v: u8) -> u8 {
     out
 }
 
-/* shift right but new value is always zeroed
+/* Shifts the contents of v the right. That is, the contents of bit 7 are copied to bit
+ * 6 and the previous contents of bit 6 (the contents before the copy operation) are copied to bit
+ * 5. The same operation is repeated in sequence for the rest of the operand. The contents of bit
+ * 0 are copied to CY, and bit 7 is reset.
  */
 fn _srl(gameboy:&mut Gameboy, v: u8) -> u8 {
     let out = v >> 1;
@@ -57,7 +102,7 @@ fn _srl(gameboy:&mut Gameboy, v: u8) -> u8 {
     out
 }
 
-/* Rotate right, through c
+/* Rotates the contents of operand m to the right.
  */
 fn _rr(gameboy: &mut Gameboy, v: u8) -> u8 {
     let c = gameboy.registers.get_flag(Flag::C);
@@ -112,19 +157,6 @@ fn _rl(gameboy: &mut Gameboy, v: u8) -> u8 {
     if c {
         out = out | 0x01
     }
-
-    gameboy.registers.set_flag(Flag::Z, out == 0);
-    gameboy.registers.set_flag(Flag::N, false);
-    gameboy.registers.set_flag(Flag::H, false);
-    gameboy.registers.set_flag(Flag::C, bytes::check_bit(v, 7));
-
-    out
-}
-
-/* Shift n left into Carry. LSB of n set to 0.
- */
-fn _sla(gameboy:&mut Gameboy, v: u8) -> u8 {
-    let out = v << 1;
 
     gameboy.registers.set_flag(Flag::Z, out == 0);
     gameboy.registers.set_flag(Flag::N, false);
@@ -715,7 +747,6 @@ pub fn sra_ar16(gameboy: &mut Gameboy, r: Registers16) {
     gameboy.advance_cycles(16);
 }
 
-
 /* Halt CPU & LCD display until button pressed
  */
 pub fn stop(gameboy: &mut Gameboy) {
@@ -1229,12 +1260,55 @@ pub fn cp_r8_ar16(gameboy: &mut Gameboy, r1: Registers8, r2: Registers16) {
     gameboy.advance_cycles(8)
 }
 
+pub fn swap_r8(gameboy: &mut Gameboy, r: Registers8) {
+    let value = gameboy.registers.get8(r);
+    let out = _swap(gameboy, value);
+    gameboy.registers.set8(r, out);
+    gameboy.advance_cycles(8)
+}
 
-// pub fn rrc_r8(gameboy: &mut Gameboy, r: Registers8) {
-// }
-// 
-// pub fn rrc_ar16(gameboy: &mut Gameboy, r: Registers8) {
-// }
+pub fn swap_ar16(gameboy: &mut Gameboy, r: Registers16) {
+    let address = gameboy.registers.get16(r);
+    let value = gameboy.mmu.get8(address);
+    let out = _swap(gameboy, value);
+    gameboy.mmu.set8(address, out);
+
+    gameboy.advance_cycles(16)
+}
+
+pub fn srl_r8(gameboy: &mut Gameboy, r: Registers8) {
+    let value = gameboy.registers.get8(r);
+    let out = _srl(gameboy, value);
+    gameboy.registers.set8(r, out);
+
+    gameboy.advance_cycles(8);
+}
+
+pub fn srl_ar16(gameboy: &mut Gameboy, r: Registers16) {
+    let address = gameboy.registers.get16(r);
+    let value = gameboy.mmu.get8(address);
+    let out = _srl(gameboy, value);
+    gameboy.mmu.set8(address, out);
+
+    gameboy.advance_cycles(16);
+}
+
+pub fn bit_r8(gameboy: &mut Gameboy, n:u8, r: Registers8) {
+    let value = gameboy.registers.get8(r);
+
+    _bit(gameboy, n, value);
+
+    gameboy.advance_cycles(8);
+}
+
+pub fn bit_ar16(gameboy: &mut Gameboy, n:u8, r: Registers16) {
+    let address = gameboy.registers.get16(r);
+    let value = gameboy.mmu.get8(address);
+
+    _bit(gameboy, n, value);
+
+    gameboy.advance_cycles(16);
+}
 
 pub fn execute(mut gameboy: &mut Gameboy, opcode: u16) {
     match opcode {
@@ -1577,6 +1651,97 @@ pub fn execute(mut gameboy: &mut Gameboy, opcode: u16) {
         0x012D => sra_r8(gameboy, Registers8::L),
         0x012E => sra_ar16(gameboy, Registers16::HL),
         0x012F => sra_r8(gameboy, Registers8::A),
+
+        0x0130 => swap_r8(gameboy, Registers8::B),
+        0x0131 => swap_r8(gameboy, Registers8::C),
+        0x0132 => swap_r8(gameboy, Registers8::D),
+        0x0133 => swap_r8(gameboy, Registers8::E),
+        0x0134 => swap_r8(gameboy, Registers8::H),
+        0x0135 => swap_r8(gameboy, Registers8::L),
+        0x0136 => swap_ar16(gameboy, Registers16::HL),
+        0x0137 => swap_r8(gameboy, Registers8::A),
+
+        0x0138 => srl_r8(gameboy, Registers8::B),
+        0x0139 => srl_r8(gameboy, Registers8::C),
+        0x013A => srl_r8(gameboy, Registers8::D),
+        0x013B => srl_r8(gameboy, Registers8::E),
+        0x013C => srl_r8(gameboy, Registers8::H),
+        0x013D => srl_r8(gameboy, Registers8::L),
+        0x013E => srl_ar16(gameboy, Registers16::HL),
+        0x013F => srl_r8(gameboy, Registers8::A),
+
+        0x0140 => bit_r8(gameboy, 0, Registers8::B),
+        0x0141 => bit_r8(gameboy, 0, Registers8::C),
+        0x0142 => bit_r8(gameboy, 0, Registers8::D),
+        0x0143 => bit_r8(gameboy, 0, Registers8::E),
+        0x0144 => bit_r8(gameboy, 0, Registers8::H),
+        0x0145 => bit_r8(gameboy, 0, Registers8::L),
+        0x0146 => bit_ar16(gameboy, 0, Registers16::HL),
+        0x0147 => bit_r8(gameboy, 0, Registers8::A),
+
+        0x0148 => bit_r8(gameboy, 1, Registers8::B),
+        0x0149 => bit_r8(gameboy, 1, Registers8::C),
+        0x014A => bit_r8(gameboy, 1, Registers8::D),
+        0x014B => bit_r8(gameboy, 1, Registers8::E),
+        0x014C => bit_r8(gameboy, 1, Registers8::H),
+        0x014D => bit_r8(gameboy, 1, Registers8::L),
+        0x014E => bit_ar16(gameboy, 1, Registers16::HL),
+        0x014F => bit_r8(gameboy, 1, Registers8::A),
+
+        0x0150 => bit_r8(gameboy, 2, Registers8::B),
+        0x0151 => bit_r8(gameboy, 2, Registers8::C),
+        0x0152 => bit_r8(gameboy, 2, Registers8::D),
+        0x0153 => bit_r8(gameboy, 2, Registers8::E),
+        0x0154 => bit_r8(gameboy, 2, Registers8::H),
+        0x0155 => bit_r8(gameboy, 2, Registers8::L),
+        0x0156 => bit_ar16(gameboy, 2, Registers16::HL),
+        0x0157 => bit_r8(gameboy, 2, Registers8::A),
+
+        0x0158 => bit_r8(gameboy, 3, Registers8::B),
+        0x0159 => bit_r8(gameboy, 3, Registers8::C),
+        0x015A => bit_r8(gameboy, 3, Registers8::D),
+        0x015B => bit_r8(gameboy, 3, Registers8::E),
+        0x015C => bit_r8(gameboy, 3, Registers8::H),
+        0x015D => bit_r8(gameboy, 3, Registers8::L),
+        0x015E => bit_ar16(gameboy, 3, Registers16::HL),
+        0x015F => bit_r8(gameboy, 3, Registers8::A),
+
+        0x0160 => bit_r8(gameboy, 4, Registers8::B),
+        0x0161 => bit_r8(gameboy, 4, Registers8::C),
+        0x0162 => bit_r8(gameboy, 4, Registers8::D),
+        0x0163 => bit_r8(gameboy, 4, Registers8::E),
+        0x0164 => bit_r8(gameboy, 4, Registers8::H),
+        0x0165 => bit_r8(gameboy, 4, Registers8::L),
+        0x0166 => bit_ar16(gameboy, 4, Registers16::HL),
+        0x0167 => bit_r8(gameboy, 4, Registers8::A),
+
+        0x0168 => bit_r8(gameboy, 5, Registers8::B),
+        0x0169 => bit_r8(gameboy, 5, Registers8::C),
+        0x016A => bit_r8(gameboy, 5, Registers8::D),
+        0x016B => bit_r8(gameboy, 5, Registers8::E),
+        0x016C => bit_r8(gameboy, 5, Registers8::H),
+        0x016D => bit_r8(gameboy, 5, Registers8::L),
+        0x016E => bit_ar16(gameboy, 5, Registers16::HL),
+        0x016F => bit_r8(gameboy, 5, Registers8::A),
+
+        0x0170 => bit_r8(gameboy, 6, Registers8::B),
+        0x0171 => bit_r8(gameboy, 6, Registers8::C),
+        0x0172 => bit_r8(gameboy, 6, Registers8::D),
+        0x0173 => bit_r8(gameboy, 6, Registers8::E),
+        0x0174 => bit_r8(gameboy, 6, Registers8::H),
+        0x0175 => bit_r8(gameboy, 6, Registers8::L),
+        0x0176 => bit_ar16(gameboy, 6, Registers16::HL),
+        0x0177 => bit_r8(gameboy, 6, Registers8::A),
+
+        0x0178 => bit_r8(gameboy, 7, Registers8::B),
+        0x0179 => bit_r8(gameboy, 7, Registers8::C),
+        0x017A => bit_r8(gameboy, 7, Registers8::D),
+        0x017B => bit_r8(gameboy, 7, Registers8::E),
+        0x017C => bit_r8(gameboy, 7, Registers8::H),
+        0x017D => bit_r8(gameboy, 7, Registers8::L),
+        0x017E => bit_ar16(gameboy, 7, Registers16::HL),
+        0x017F => bit_r8(gameboy, 7, Registers8::A),
+
         _ => panic!("not implemented"),
     }
 }
