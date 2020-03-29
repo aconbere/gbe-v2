@@ -15,6 +15,10 @@ use super::palette;
 mod rate_limiter;
 mod canvas;
 
+use rate_limiter::RateLimiter;
+
+
+#[derive(PartialEq, Eq)]
 enum State {
     Running,
     Paused,
@@ -26,7 +30,6 @@ pub struct SDL {
     state: State,
     canvas: Canvas<Window>,
     sdl_context: sdl2::Sdl,
-    timer: sdl2::TimerSubsystem,
 }
 
 
@@ -46,13 +49,10 @@ impl SDL {
 
         canvas.set_scale(scale as f32, scale as f32).unwrap();
 
-        let timer = sdl_context.timer().unwrap();
-
         Ok(SDL {
             state: State::Running,
             canvas: canvas,
             sdl_context: sdl_context,
-            timer: timer,
         })
     }
 
@@ -73,43 +73,38 @@ impl SDL {
     }
 
     pub fn start(&mut self, gameboy: &mut gameboy::Gameboy) {
-        let mut framebuffer: framebuffer::Framebuffer = [palette::Shade::White; 23040];
-
-        let mut rate_limiter = rate_limiter::new(60);
+        let mut rate_limiter = RateLimiter::new(1);
 
         'mainloop: loop {
             match self.state {
                 State::InstructionAdvance => {
-                    gameboy.next_instruction(&mut framebuffer);
-
-                    canvas::draw(&mut self.canvas, &framebuffer);
-
-                    self.canvas.present();
-                    self.state = State::Paused;
-                }
-                State::FrameAdvance => {
-                    gameboy.next_frame(&mut framebuffer);
-
-                    canvas::draw(&mut self.canvas, &framebuffer);
+                    if gameboy.next_instruction() {
+                        canvas::draw(&mut self.canvas, &gameboy.get_current_frame());
+                    }
 
                     self.canvas.present();
                     self.state = State::Paused;
                 }
-                State::Running => {
-                    gameboy.next_frame(&mut framebuffer);
+                State::Running | State::FrameAdvance => {
+                    println!("Frame");
+                    gameboy.next_frame();
 
-                    canvas::draw(&mut self.canvas, &framebuffer);
+                    canvas::draw(&mut self.canvas, &gameboy.get_current_frame());
 
                     self.canvas.present();
+
+                    if self.state == State::FrameAdvance {
+                        self.state = State::Paused;
+                    }
                 }
                 State::Paused => {
                     self.canvas.clear();
-                    canvas::draw(&mut self.canvas, &framebuffer);
+                    canvas::draw(&mut self.canvas, &gameboy.get_current_frame());
                     self.canvas.present();
                 }
             }
 
-            rate_limiter.limit(&mut self.timer);
+            rate_limiter.limit();
 
             let mut events = self.sdl_context.event_pump().unwrap();
 

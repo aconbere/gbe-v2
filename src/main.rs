@@ -5,6 +5,10 @@ mod sdl;
 mod gameboy;
 mod framebuffer;
 mod palette;
+mod register;
+mod bytes;
+mod cpu;
+mod mmu;
 
 use gameboy::Gameboy;
 use sdl::SDL;

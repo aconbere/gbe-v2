@@ -1,0 +1,9 @@
+Documents:
+* https://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html
+* https://blog.ryanlevick.com/DMG-01/public/book/cpu/register_data_instructions.html
+* http://marc.rawer.de/Gameboy/Docs/GBCPUman.pdf
+* https://rednex.github.io/rgbds/gbz80.7.html
+* https://robdor.com/2016/08/10/gameboy-emulator-half-carry-flag/
+* http://datasheets.chipdb.org/Zilog/Z80/z80-documented-0.90.pdf<Paste> 
+
+
