@@ -8,10 +8,14 @@ mod palette;
 mod register;
 mod bytes;
 mod cpu;
+mod gpu;
 mod mmu;
+mod tile;
+mod device;
+mod rom;
+mod helpers;
 
 use gameboy::Gameboy;
-use sdl::SDL;
 
 fn main() {
     let matches = clap_app!(anders_gameboy_emulator =>
@@ -23,14 +27,11 @@ fn main() {
         (@arg CONFIG: --config +takes_value "An optional configuration file to read.")
     ).get_matches();
 
-    let params = gameboy::StartParameters::new(
+    let mut gameboy = Gameboy::new(
         matches.value_of("BOOT_ROM").unwrap(),
         matches.value_of("GAME_ROM").unwrap(),
-        matches.value_of("CONFIG"),
     ).unwrap();
 
+    gameboy.start_sdl();
 
-    let mut gameboy = Gameboy::new(&params);
-    let mut display = SDL::new().unwrap();
-    display.start(&mut gameboy);
 }

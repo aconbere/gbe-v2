@@ -1,4 +1,6 @@
 use super::bytes;
+use std::fmt;
+use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Registers8 {
@@ -189,4 +191,19 @@ impl Registers {
     pub fn get_interrupts_enabled(&self) -> bool {
         self.interrupts_enabled
     }
+}
+
+impl fmt::Debug for Registers {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f,
+               "AF: {:04X} BC: {:04X} DE: {:04X} HL: {:04X} PC: {:04X} SP {:04X}",
+               self.get16(Registers16::AF),
+               self.get16(Registers16::BC),
+               self.get16(Registers16::DE),
+               self.get16(Registers16::HL),
+               self.get16(Registers16::PC),
+               self.get16(Registers16::SP),
+        )
+    } 
+
 }

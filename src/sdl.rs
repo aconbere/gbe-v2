@@ -4,19 +4,19 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
+use sdl2::pixels::Color;
+use sdl2::rect::Point;
+
+use crate::palette::Shade;
+use crate::framebuffer::Framebuffer;
 
 use anyhow;
 
-use super::framebuffer;
-use super::gameboy;
-use super::palette;
-
+use crate::cpu::CPU;
 
 mod rate_limiter;
-mod canvas;
 
 use rate_limiter::RateLimiter;
-
 
 #[derive(PartialEq, Eq)]
 enum State {
@@ -72,24 +72,50 @@ impl SDL {
         }
     }
 
-    pub fn start(&mut self, gameboy: &mut gameboy::Gameboy) {
+    /* For each pixel in the framebuffer render the palette shade into a point of
+     * a specific color on the canvas.
+     */
+    pub fn draw(&mut self, framebuffer: &Framebuffer) {
+        for x in 0..160 {
+            for y in 0..144 {
+                let i = (y * 160) + x;
+                let v = framebuffer.get(i);
+                match v {
+                    Shade::White => {
+                        self.canvas.set_draw_color(Color::RGBA(255, 255, 255, 255))
+                    }
+                    Shade::LightGrey => {
+                        self.canvas.set_draw_color(Color::RGBA(211, 211, 211, 255))
+                    }
+                    Shade::DarkGrey => {
+                        self.canvas.set_draw_color(Color::RGBA(169, 169, 169, 255))
+                    }
+                    Shade::Black => {
+                        self.canvas.set_draw_color(Color::RGBA(0, 0, 0, 255))
+                    }
+                }
+                self.canvas.draw_point(Point::new(x as i32, y as i32)).unwrap();
+            }
+        }
+    }
+
+
+    pub fn start(&mut self, cpu: &mut CPU) {
         let mut rate_limiter = RateLimiter::new(1);
 
         'mainloop: loop {
             match self.state {
                 State::InstructionAdvance => {
-                    if gameboy.next_instruction() {
-                        canvas::draw(&mut self.canvas, &gameboy.get_current_frame());
-                    }
+                    cpu.next_instruction();
+                    self.draw(&cpu.framebuffer);
 
                     self.canvas.present();
                     self.state = State::Paused;
                 }
                 State::Running | State::FrameAdvance => {
-                    println!("Frame");
-                    gameboy.next_frame();
+                    cpu.next_frame();
 
-                    canvas::draw(&mut self.canvas, &gameboy.get_current_frame());
+                    self.draw(&cpu.framebuffer);
 
                     self.canvas.present();
 
@@ -99,7 +125,7 @@ impl SDL {
                 }
                 State::Paused => {
                     self.canvas.clear();
-                    canvas::draw(&mut self.canvas, &gameboy.get_current_frame());
+                    self.draw(&cpu.framebuffer);
                     self.canvas.present();
                 }
             }
