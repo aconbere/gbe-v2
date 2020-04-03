@@ -1,6 +1,5 @@
 use crate::register::{Registers, Registers16, Registers8};
 use crate::mmu::MMU;
-use crate::gpu::GPU;
 use crate::bytes;
 use crate::framebuffer::Framebuffer;
 use crate::palette;
@@ -11,13 +10,34 @@ use instructions::{JumpFlag, RstFlag};
 
 const FRAME_CYCLES:u32 = 70244;
 
+#[derive(PartialEq)]
+pub enum Mode {
+    // OAM Read mode
+    OAM,
+
+    // VRAM Read mode
+    // End of VRAM is a completed scanline
+    VRAM,
+
+    // End of a scanline until the beginning of a new scanline
+    // At the end of the last hblank we'll render our full frame
+    HBlank,
+
+    // End of a frame, vblank lasts ~10 lines
+    VBlank,
+}
+
+
 pub struct CPU {
     mmu: MMU,
-    gpu: GPU,
     registers: Registers,
 
     cycles: u32,
+    mode_clock: u32,
+    mode: Mode,
+    lines: u32,
     frame_count: u32,
+
     pub framebuffer: Framebuffer,
     pub stopped: bool,
     pub halted: bool,
@@ -28,10 +48,14 @@ impl CPU {
     pub fn new(mmu: MMU) -> CPU {
         CPU {
             mmu: mmu,
-            gpu: GPU::new(),
             registers: Registers::new(),
+
             cycles: 0,
+            mode_clock: 0,
+            mode: Mode::OAM,
+            lines: 0,
             frame_count: 0,
+
             framebuffer: Framebuffer::new(),
             stopped: false,
             halted: false,
@@ -74,20 +98,7 @@ impl CPU {
         println!("DEBUG: {:?}", result.name);
         println!("DEBUG: {:?}", self.registers);
 
-        self.advance_cycles(result.cycles);
-
-        self.gpu.advance_cycles(result.cycles);
-
-        // If is a new frame (clock check)
-        if self.cycles >= FRAME_CYCLES {
-            // if we crossed 70244 we want to loop back around
-            self.frame_count += 1;
-            self.cycles -= FRAME_CYCLES;
-            true
-        } else {
-            false
-        }
-
+        self.advance_cycles(result.cycles)
     }
 
 
@@ -107,8 +118,59 @@ impl CPU {
         self.halted = true;
     }
 
-    pub fn advance_cycles(&mut self, n: u8) {
+    pub fn advance_cycles(&mut self, n: u8) -> bool {
         self.cycles = self.cycles.wrapping_add(n as u32);
+
+        match self.mode {
+            Mode::OAM => {
+                if self.mode_clock >= 80 {
+                    self.mode = Mode::VRAM;
+                }
+            }
+            Mode::VRAM => {
+                if self.mode_clock >= 252 {
+                    self.render_line();
+                    self.mode = Mode::HBlank;
+                }
+            }
+            Mode::HBlank => {
+                if self.mode_clock >= 456 {
+                    self.mode_clock -= 456;
+
+                    self.lines += 1;
+
+                    if self.lines == 144 {
+                        self.mode = Mode::VBlank;
+                    } else {
+                        self.mode = Mode::OAM;
+                    }
+                }
+            }
+            Mode::VBlank => {
+                if self.mode_clock >= 456 {
+                    self.mode_clock -= 456;
+                    self.lines += 1;
+                }
+
+                if self.lines == 153 {
+                    self.lines = 0;
+                    self.mode = Mode::OAM;
+                }
+            }
+        }
+
+        // If is a new frame (clock check)
+        if self.cycles >= FRAME_CYCLES {
+            // if we crossed 70244 we want to loop back around
+            self.frame_count += 1;
+            self.cycles -= FRAME_CYCLES;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn render_line(&mut self) {
     }
 
     pub fn advance_pc(&mut self) -> u8 {

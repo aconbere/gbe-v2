@@ -308,6 +308,7 @@ fn _push(cpu: &mut CPU, r: Registers16)  {
     let (ms, ls) = bytes::split_ms_ls(v);
 
     sp = sp.wrapping_sub(1);
+
     println!("Push: {:X} {:X}", sp, ls);
     cpu.mmu.set(sp, ls);
 

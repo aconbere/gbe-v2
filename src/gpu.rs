@@ -5,23 +5,6 @@ const VRAM_BEGIN: usize = 0x8000;
 const VRAM_END: usize = 0x9FFF;
 const VRAM_SIZE: usize = VRAM_END - VRAM_BEGIN + 1;
 
-#[derive(PartialEq)]
-pub enum Mode {
-    // OAM Read mode
-    OAM,
-
-    // VRAM Read mode
-    // End of VRAM is a completed scanline
-    VRAM,
-
-    // End of a scanline until the beginning of a new scanline
-    // At the end of the last hblank we'll render our full frame
-    HBlank,
-
-    // End of a frame, vblank lasts ~10 lines
-    VBlank,
-}
-
 pub struct GPU {
     vram: [u8; VRAM_SIZE],
     tile_set: [Tile; 384],
@@ -40,6 +23,7 @@ impl GPU {
             tile_set: [Tile::zero(); 384],
         }
     }
+
 }
 
 impl Device for GPU {

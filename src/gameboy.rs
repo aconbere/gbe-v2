@@ -15,8 +15,9 @@ impl Gameboy {
         let game_rom = Rom::read(game_rom)?;
         let boot_rom = Rom::read(boot_rom)?;
 
-        let mmu = MMU::new(boot_rom, game_rom);
-        let cpu = CPU::new(mmu);
+        let cpu = CPU::new(
+            MMU::new(boot_rom, game_rom)
+        );
 
         Ok(Gameboy { cpu: cpu, })
     }
