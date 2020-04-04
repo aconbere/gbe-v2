@@ -31,12 +31,14 @@ pub fn set_bit(input: u8, n: u8, b: bool) -> u8 {
 pub fn add_unsigned_signed(a: u16, b: u8) -> (u16, bool, bool) {
     let al = (a & 0x00FF) as u8;
 
-    if b < 0x7F {
-        let (v, overflow) = a.overflowing_add(b as u16);
+    let bi: i8 = b as i8;
+
+    if bi >= 0 {
+        let (v, overflow) = a.overflowing_add(bi as u16);
         let hc = check_half_carry8(al, b);
         (v, overflow, hc)
     } else {
-        let (v, overflow) = a.overflowing_sub(((255 - b) + 1) as u16);
+        let (v, overflow) = a.overflowing_sub((-bi) as u16);
         let hc = check_half_carry_sub8(al, b);
         (v, overflow, hc)
     }
@@ -100,17 +102,6 @@ mod tests {
         // assert_eq!(add_unsigned_signed(0x0032, 0xFD), (0x0023, false, true));
         // assert_eq!(add_unsigned_signed(0x0002, 0xFD), (0xFFF3, true, true));
 
-        let fb:u8 = 0xFB;
-        println!("FB {:b}", fb);
-        println!("FB sr 4 {:X}", fb >> 4);
-        println!("FB sl 4 {:X}", fb << 4);
-        println!("FB sl 4 {:X}", (fb << 4) - 125);
-        println!("FB sl 4 {:X}", (fb << 4));
-
-        println!("FB {:X}", 0xFF - fb);
-        println!("FB {:X}", 0xFF - 0xFC);
-
-        println!("FB - 125 {:X}", fb - 125);
         assert_eq!(add_unsigned_signed(0x000C, 0xFB), (0x0007, false, false));
     }
 

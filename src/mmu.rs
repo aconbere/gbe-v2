@@ -1,8 +1,8 @@
 use crate::bytes;
 use crate::gpu::GPU;
 use crate::device::Device;
-use crate::device::tile_map::TileMap;
 use crate::device::ram::Ram;
+use crate::device::lcd::LCD;
 use crate::rom::Rom;
 
 enum DeviceRef {
@@ -19,10 +19,10 @@ enum DeviceRef {
 pub struct MMU {
     boot_rom: Rom,
     cartridge: Rom,
-    tile_map: TileMap,
-    io_registers: Ram,
+    io: Ram,
     zero_page: Ram,
-    gpu: GPU,
+    pub lcd: LCD,
+    pub gpu: GPU,
     booted: bool,
 }
 
@@ -31,9 +31,9 @@ impl MMU {
         MMU {
             boot_rom: boot_rom,
             cartridge: game_rom,
-            tile_map: TileMap::new(),
-            io_registers: Ram::new(),
+            io: Ram::new(),
             zero_page: Ram::new(),
+            lcd: LCD::new(),
             gpu: GPU::new(),
             booted: false,
         }
@@ -44,8 +44,14 @@ impl MMU {
             (start, DeviceRef::GPU) => self.gpu.get(address - start),
             (start, DeviceRef::BootRom) => self.boot_rom.get(address - start),
             (start, DeviceRef::GameRom) => self.cartridge.get(address - start),
-            (start, DeviceRef::TileMap) => self.tile_map.get(address - start),
-            (start, DeviceRef::IORegisters) => self.io_registers.get(address - start),
+            (start, DeviceRef::TileMap) => self.gpu.tile_map.get(address - start),
+            (start, DeviceRef::IORegisters) => {
+                if address == 0xFF40 {
+                    self.lcd.get(address - start)
+                } else {
+                    self.io.get(address - start)
+                }
+            },
             (start, DeviceRef::CartridgeHeader) => self.cartridge.get(address - start),
             (start, DeviceRef::ZeroPage) => self.zero_page.get(address - start),
             _ => panic!("Memory Not implemented: {:X}", address),
@@ -63,8 +69,13 @@ impl MMU {
             (start, DeviceRef::GPU) => self.gpu.set(address - start, value),
             (start, DeviceRef::BootRom) => self.boot_rom.set(address - start, value),
             (start, DeviceRef::GameRom) => self.cartridge.set(address - start, value),
-            (start, DeviceRef::TileMap) => self.tile_map.set(address - start, value),
-            (start, DeviceRef::IORegisters) => self.io_registers.set(address - start, value),
+            (start, DeviceRef::TileMap) => self.gpu.tile_map.set(address - start, value),
+            (start, DeviceRef::IORegisters) => {
+                match address {
+                    0xFF40..=0xFF4B => self.lcd.set(address - start, value),
+                    _ => self.io.set(address - start, value),
+                }
+            }
             (start, DeviceRef::CartridgeHeader) => self.cartridge.set(address - start, value),
             (start, DeviceRef::ZeroPage) => self.zero_page.set(address - start, value),
             _ => panic!("Memory Not implemented: {:X}", address),

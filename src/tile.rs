@@ -2,10 +2,10 @@ use crate::bytes;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Pixel {
-    P0,
-    P1,
-    P2,
-    P3,
+    P0 = 0,
+    P1 = 1,
+    P2 = 2,
+    P3 = 3,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -33,14 +33,18 @@ pub struct Tile {
 * 8. [2,1,0,0,3,1,3.2]
 */
 impl Tile {
-    pub fn new(arr: [u8;16]) -> Tile {
-        Tile {
-            data: arr_to_tile(arr),
-        }
-    }
+//     pub fn new(arr: [u8;16]) -> Tile {
+//         Tile {
+//             data: arr_to_tile(arr),
+//         }
+//     }
 
     pub fn set_row(&mut self, index: u8, top_byte: u8, bottom_byte: u8) {
         self.data[index as usize] = bytes_to_row(top_byte, bottom_byte);
+    }
+
+    pub fn get_row(&self, index: u8) -> [Pixel; 8] {
+        self.data[index as usize]
     }
 
     pub fn zero() -> Tile {
@@ -50,17 +54,17 @@ impl Tile {
     }
 }
 
-fn arr_to_tile(arr: [u8; 16]) -> [[Pixel;8];8] {
-    let mut data = [[Pixel::P0; 8];8];
-
-    for i in 0..=7 {
-        let offset = (i * 2) as usize;
-
-        data[i] = bytes_to_row(arr[offset], arr[offset + 1]);
-    }
-
-    data
-}
+// fn arr_to_tile(arr: [u8; 16]) -> [[Pixel;8];8] {
+//     let mut data = [[Pixel::P0; 8];8];
+// 
+//     for i in 0..=7 {
+//         let offset = (i * 2) as usize;
+// 
+//         data[i] = bytes_to_row(arr[offset], arr[offset + 1]);
+//     }
+// 
+//     data
+// }
 
 pub fn bytes_to_row(top_byte: u8, bottom_byte: u8) -> [Pixel;8] {
     let mut arr = [Pixel::P0;8];

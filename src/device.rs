@@ -1,5 +1,6 @@
 pub mod tile_map;
 pub mod ram;
+pub mod lcd;
 
 pub trait Device {
     fn get(&self, a: u16) -> u8;

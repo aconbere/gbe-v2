@@ -332,7 +332,7 @@ fn cycles(a: u8, n: String) -> OpResult {
 
 /* Does nothing, pc advances 1
  */
-pub fn nop(cpu: &mut CPU) -> OpResult {
+pub fn nop(_cpu: &mut CPU) -> OpResult {
     cycles(4, "NOP".to_string())
 }
 

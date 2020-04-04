@@ -29,6 +29,7 @@ enum State {
 pub struct SDL {
     state: State,
     canvas: Canvas<Window>,
+    tile_canvas: Canvas<Window>,
     sdl_context: sdl2::Sdl,
 }
 
@@ -45,13 +46,24 @@ impl SDL {
             .position_centered()
             .build()?;
 
+
         let mut canvas = window.into_canvas().software().build()?;
 
         canvas.set_scale(scale as f32, scale as f32).unwrap();
 
+        let tile_window = video_subsystem
+            .window("Tiles", 256 * scale, 256 * scale)
+            .position_centered()
+            .build()?;
+
+        let mut tile_canvas = tile_window.into_canvas().software().build()?;
+
+        tile_canvas.set_scale(scale as f32, scale as f32).unwrap();
+
         Ok(SDL {
             state: State::Running,
             canvas: canvas,
+            tile_canvas: tile_canvas,
             sdl_context: sdl_context,
         })
     }
@@ -101,7 +113,7 @@ impl SDL {
 
 
     pub fn start(&mut self, cpu: &mut CPU) {
-        let mut rate_limiter = RateLimiter::new(1);
+        let mut rate_limiter = RateLimiter::new(60);
 
         'mainloop: loop {
             match self.state {

@@ -4,7 +4,7 @@ Documents:
 * http://marc.rawer.de/Gameboy/Docs/GBCPUman.pdf
 * https://rednex.github.io/rgbds/gbz80.7.html
 * https://robdor.com/2016/08/10/gameboy-emulator-half-carry-flag/
-* http://datasheets.chipdb.org/Zilog/Z80/z80-documented-0.90.pdf<Paste> 
+* http://datasheets.chipdb.org/Zilog/Z80/z80-documented-0.90.pdf
 * https://copetti.org/projects/consoles/game-boy/
 * Memory Map: http://gameboy.mongenel.com/dmg/asmmemmap.html
 * https://gekkio.fi/files/gb-docs/gbctr.pdf

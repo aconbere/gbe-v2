@@ -2,41 +2,93 @@ use crate::register::{Registers, Registers16, Registers8};
 use crate::mmu::MMU;
 use crate::bytes;
 use crate::framebuffer::Framebuffer;
-use crate::palette;
+use crate::device::lcd::Mode;
 
 mod instructions;
 
 use instructions::{JumpFlag, RstFlag};
 
-const FRAME_CYCLES:u32 = 70244;
+fn render_line(mmu: &mut MMU, framebuffer: &mut Framebuffer) {
+    println!("cpu::render_line");
+    // get our y-offset, this wont change per scan line
 
-#[derive(PartialEq)]
-pub enum Mode {
-    // OAM Read mode
-    OAM,
+    let mut i = 0;
 
-    // VRAM Read mode
-    // End of VRAM is a completed scanline
-    VRAM,
+    // for each pixel in a line
+    while i < 160 {
+        /* The Tile Map is a 32x32 array where every byte is a reference to where in the tile data
+         * to pull tile data from.
+         *
+         * So for every line we're on, we jump forward 32 tiles. We take the current x scroll
+         * position and add to it where we are in rendering this line (i). Then we want to find
+         * which tile we would land on, so divide our current index (i) by 32 to find which of the
+         * 32 tiles we are on.
+         *
+         * We'll later need to know which index in the tile we're at so record that while we're at
+         * it.
+         */
 
-    // End of a scanline until the beginning of a new scanline
-    // At the end of the last hblank we'll render our full frame
-    HBlank,
+        /* y offset tells us which row in on the grid we're on.*/
+        let y_offset = mmu.lcd.get_y_offset();
 
-    // End of a frame, vblank lasts ~10 lines
-    VBlank,
+        println!("CPU::render_tile y_offset: {}", y_offset);
+
+        /* x offset tells us which pixel in the line we're on. we have to take this and map it into
+         * which tile it would be
+         */
+        let x_offset = mmu.lcd.scroll_x + i;
+
+        println!("CPU::render_tile x_offset: {}", y_offset);
+
+        /* This block determines which tile we are on in the 32x32 grid. */
+        let tile_index_y = y_offset / 8;
+        let tile_index_x = x_offset / 8;
+
+        /* Figure out where to to find the data in the tile map index */
+        let tile_map_index = (tile_index_y as u16 * 32) + tile_index_x as u16;
+
+        /* Find the tile data at the map index */
+        let tile_data_index = mmu.gpu.get_map(tile_map_index, mmu.lcd.control.tile_map);
+        println!("CPU::render_tile tile_data_index: {}", y_offset);
+
+        /* We check what tile data set is enabled and use the tile data index found previously to
+         * fetch a tile.
+         */
+        let tile = mmu.gpu.get_tile(tile_data_index, mmu.lcd.control.tile_data);
+
+        /* Once we have the tile we need to know which pixel we're on in the pixel
+         * in the x direction if we are on i = 0 then we need to take the x_offset and
+         * get the remainder from 8.
+         */
+        let pixel_index_y = y_offset % 8;
+        let pixel_index_x = if i == 0 { x_offset % 8 } else { 0 };
+
+        /* Once we have a tile, we need to actually index into the tile at the right location
+         * For each pixel in the tile render the pixel. Now... of course this can't be simple.
+         */
+        let row = tile.get_row(pixel_index_y);
+
+        for j in (pixel_index_x..8).rev() {
+            println!("LCD Lines: {}", mmu.lcd.lines);
+            println!("i: {}", i);
+            let frame_index = ((mmu.lcd.lines as u16) * 160) + (i as u16);
+
+            let pixel = row[j as usize];
+
+            framebuffer.set(
+                frame_index as usize,
+                mmu.lcd.bg_palette.map(pixel),
+            );
+
+            i += 1;
+        }
+    }
 }
 
 
 pub struct CPU {
     mmu: MMU,
     registers: Registers,
-
-    cycles: u32,
-    mode_clock: u32,
-    mode: Mode,
-    lines: u32,
-    frame_count: u32,
 
     pub framebuffer: Framebuffer,
     pub stopped: bool,
@@ -50,12 +102,6 @@ impl CPU {
             mmu: mmu,
             registers: Registers::new(),
 
-            cycles: 0,
-            mode_clock: 0,
-            mode: Mode::OAM,
-            lines: 0,
-            frame_count: 0,
-
             framebuffer: Framebuffer::new(),
             stopped: false,
             halted: false,
@@ -64,17 +110,24 @@ impl CPU {
     }
 
     pub fn next_frame(&mut self) {
+        println!("CPU::next_frame");
         loop {
-            if self.next_instruction() || self.stopped || self.halted {
+            match self.next_instruction() {
+                Some(Mode::OAM) => break,
+                Some(Mode::HBlank) => {
+                    render_line(&mut self.mmu, &mut self.framebuffer);
+                },
+                Some(Mode::VBlank) => {
+                    self.framebuffer.reset();
+                },
+                _ => {},
+            }
+
+            if self.stopped || self.halted {
                 break;
             }
         }
 
-        self.framebuffer.reset();
-
-        self.framebuffer.set(1000, palette::Shade::Black);
-        self.framebuffer.set(1001, palette::Shade::LightGrey);
-        self.framebuffer.set(1002, palette::Shade::DarkGrey);
     }
 
     pub fn fetch_opcode(&mut self) -> u16{
@@ -91,14 +144,14 @@ impl CPU {
         }
     }
 
-    pub fn next_instruction(&mut self) -> bool {
+    pub fn next_instruction(&mut self) -> Option<Mode> {
         let opcode = self.fetch_opcode();
         let result = self.execute(opcode);
 
         println!("DEBUG: {:?}", result.name);
         println!("DEBUG: {:?}", self.registers);
 
-        self.advance_cycles(result.cycles)
+        self.mmu.lcd.advance_cycles(result.cycles)
     }
 
 
@@ -116,61 +169,6 @@ impl CPU {
 
     pub fn halt(&mut self) {
         self.halted = true;
-    }
-
-    pub fn advance_cycles(&mut self, n: u8) -> bool {
-        self.cycles = self.cycles.wrapping_add(n as u32);
-
-        match self.mode {
-            Mode::OAM => {
-                if self.mode_clock >= 80 {
-                    self.mode = Mode::VRAM;
-                }
-            }
-            Mode::VRAM => {
-                if self.mode_clock >= 252 {
-                    self.render_line();
-                    self.mode = Mode::HBlank;
-                }
-            }
-            Mode::HBlank => {
-                if self.mode_clock >= 456 {
-                    self.mode_clock -= 456;
-
-                    self.lines += 1;
-
-                    if self.lines == 144 {
-                        self.mode = Mode::VBlank;
-                    } else {
-                        self.mode = Mode::OAM;
-                    }
-                }
-            }
-            Mode::VBlank => {
-                if self.mode_clock >= 456 {
-                    self.mode_clock -= 456;
-                    self.lines += 1;
-                }
-
-                if self.lines == 153 {
-                    self.lines = 0;
-                    self.mode = Mode::OAM;
-                }
-            }
-        }
-
-        // If is a new frame (clock check)
-        if self.cycles >= FRAME_CYCLES {
-            // if we crossed 70244 we want to loop back around
-            self.frame_count += 1;
-            self.cycles -= FRAME_CYCLES;
-            true
-        } else {
-            false
-        }
-    }
-
-    fn render_line(&mut self) {
     }
 
     pub fn advance_pc(&mut self) -> u8 {
