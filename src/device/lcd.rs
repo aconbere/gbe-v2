@@ -269,7 +269,6 @@ impl LCD {
     
 
     pub fn advance_cycles(&mut self, n: u8) -> Option<Mode> {
-        println!("LCD::advance_cycles: {:X}", n);
         self.cycles = self.cycles.wrapping_add(n as u32);
         self.mode_clock = self.mode_clock.wrapping_add(n as u32);
 

@@ -1,6 +1,6 @@
 use crate::bytes;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum Pixel {
     P0 = 0,
     P1 = 1,

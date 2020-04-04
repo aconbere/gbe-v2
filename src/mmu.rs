@@ -135,3 +135,18 @@ impl MMU {
         0xFF80...0xFFFE => Kind::ZeroPage,
         0xFFFF...0xFFFF => Kind::InterruptEnableFlag,
 */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_set_tile_map() {
+        let mut m = MMU::new(Rom::zero(), Rom::zero());
+        let a = 0x9800 + 272;
+        m.set(a, 0x19);
+        assert_eq!(m.get(a), 0x19);
+        assert_eq!(m.gpu.tile_map.get(272), 0x19);
+        assert_eq!(m.gpu.get_map(272, false), 0x19);
+    }
+}

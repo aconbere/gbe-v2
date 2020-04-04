@@ -302,14 +302,12 @@ fn _call(cpu: &mut CPU, n: u16) {
 
 fn _push(cpu: &mut CPU, r: Registers16)  {
     let mut sp = cpu.registers.get16(Registers16::SP);
-    println!("Push: {:X}", sp);
 
     let v = cpu.registers.get16(r);
     let (ms, ls) = bytes::split_ms_ls(v);
 
     sp = sp.wrapping_sub(1);
 
-    println!("Push: {:X} {:X}", sp, ls);
     cpu.mmu.set(sp, ls);
 
     sp = sp.wrapping_sub(1);
@@ -447,7 +445,6 @@ pub fn dec_r8(cpu: &mut CPU, r:Registers8) -> OpResult {
  */
 pub fn ld_ar16_r8(cpu: &mut CPU, r1: Registers16, r2: Registers8) -> OpResult {
     let address = cpu.registers.get16(r1);
-    println!("Load into memory at: {:X}", address);
     let value = cpu.registers.get8(r2);
     cpu.mmu.set(address, value);
 
@@ -835,7 +832,6 @@ pub fn jp_ar16(cpu: &mut CPU, r: Registers16) -> OpResult {
 
 pub fn call_n16(cpu: &mut CPU) -> OpResult {
     let v = cpu.fetch_arg_16();
-    println!("CALL N16: {:X}", v);
     _push(cpu, Registers16::PC);
     _jump(cpu, v);
     cycles(12, format!("CALL N16 {:X}", v))

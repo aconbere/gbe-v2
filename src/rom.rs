@@ -9,6 +9,12 @@ pub struct Rom {
 }
 
 impl Rom {
+    pub fn zero() -> Rom {
+        Rom {
+            storage: [0;256],
+        }
+    }
+
     pub fn read(p: &str) -> Result<Rom, Error> {
         let mut bytes = [0; 256];
         let mut f = open_file(p)?;
