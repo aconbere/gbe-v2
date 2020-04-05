@@ -34,12 +34,10 @@ impl CPU {
         /* Where are we in the lcd screen */
         let y = self.mmu.lcd.lines as usize;
 
-        /* y offset tells us which row in on the grid we're on.*/
+        /* y offset tells us which row in the background buffer we're on.*/
         let bg_y = self.mmu.lcd.get_y_offset() as usize;
 
-        /* x offset tells us which pixel in the line we're on. we have to take this and map it into
-         * which tile it would be
-         */
+        /* scroll x tells us which column in the background buffer we're on */
         let bg_x = self.mmu.lcd.scroll_x as usize;
 
         for x in 0..160 as usize {
@@ -49,7 +47,6 @@ impl CPU {
 
 
     pub fn next_frame(&mut self) {
-        println!("CPU::next_frame");
         loop {
             match self.next_instruction() {
                 Some(Mode::OAM) => break,

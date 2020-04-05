@@ -49,8 +49,6 @@ impl SDL {
 
         let canvas = window.into_canvas().software().build()?;
 
-        // canvas.set_scale(scale as f32, scale as f32).unwrap();
-
         Ok(SDL {
             state: State::Running,
             canvas: canvas,
@@ -110,10 +108,10 @@ impl SDL {
         }
     }
 
-    pub fn draw_tile_map(&mut self, origin_x: i32, origin_y: i32, buffer: &[[Shade;256];256]) {
+    pub fn draw_tile_map(&mut self, origin_x: i32, origin_y: i32, cpu: &CPU) {
         for y in 0..256 {
             for x in 0..256 {
-                let shade = buffer[y][x];
+                let shade = cpu.mmu.gpu.buffer[y][x];
                 match shade {
                     Shade::White => {
                         self.canvas.set_draw_color(Color::RGBA(255, 255, 255, 255))
@@ -128,11 +126,20 @@ impl SDL {
                         self.canvas.set_draw_color(Color::RGBA(0, 0, 0, 255))
                     }
                 }
+
                 self.canvas.draw_point(
                     Point::new(x as i32 + origin_x, y as i32 + origin_y)
                 ).unwrap();
             }
         }
+
+        self.canvas.set_draw_color(Color::RGBA(255, 0, 0, 126));
+        self.canvas.draw_rect(
+            Rect::new(
+                (cpu.mmu.lcd.scroll_x as i32) + origin_x,
+                cpu.mmu.lcd.scroll_y as i32,
+                160, 144)
+        ).unwrap();
     }
 
     pub fn start(&mut self, cpu: &mut CPU) {
@@ -152,7 +159,7 @@ impl SDL {
                     cpu.next_frame();
 
                     self.draw_frame(0,0, &cpu.buffer);
-                    self.draw_tile_map(160*SCALE as i32,0, &cpu.mmu.gpu.buffer);
+                    self.draw_tile_map(160*SCALE as i32, 0, cpu);
 
                     self.canvas.present();
 
