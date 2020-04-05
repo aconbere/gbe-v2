@@ -1273,7 +1273,7 @@ pub fn cp_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
 
     _sub(cpu, a, b);
 
-    cycles(8, format!("CP R8 N8 {:?}", r))
+    cycles(8, format!("CP R8 N8 {:?} {:X}", r, b))
 }
 
 pub fn cp_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {

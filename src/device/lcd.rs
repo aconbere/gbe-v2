@@ -163,7 +163,7 @@ impl std::convert::From<StatusRegister> for u8 {
 
 #[derive(Debug, Clone, Copy)]
 pub struct ControlRegister {
-    pub lcd_enabled: bool,
+    pub display_enabled: bool,
     pub tile_map: bool,
     pub window_enabled: bool,
     pub tile_data: bool,
@@ -176,7 +176,7 @@ pub struct ControlRegister {
 impl ControlRegister {
     pub fn new() -> ControlRegister {
         ControlRegister {
-            lcd_enabled: false,
+            display_enabled: false,
             tile_map: false,
             window_enabled: false,
             tile_data: false,
@@ -191,7 +191,7 @@ impl ControlRegister {
 impl std::convert::From<u8> for ControlRegister {
     fn from(byte: u8) -> Self {
         ControlRegister {
-            lcd_enabled: bytes::check_bit(byte, 7),
+            display_enabled: bytes::check_bit(byte, 7),
             tile_map: bytes::check_bit(byte, 6),
             window_enabled: bytes::check_bit(byte, 5),
             tile_data: bytes::check_bit(byte, 4),
@@ -207,7 +207,7 @@ impl std::convert::From<ControlRegister> for u8 {
     fn from(r: ControlRegister) -> Self {
         let mut u:u8 = 0;
 
-        u = bytes::set_bit(u, 7, r.lcd_enabled);
+        u = bytes::set_bit(u, 7, r.display_enabled);
         u = bytes::set_bit(u, 6, r.tile_map);
         u = bytes::set_bit(u, 5, r.window_enabled);
         u = bytes::set_bit(u, 4, r.tile_data);
@@ -264,6 +264,10 @@ impl LCD {
     
 
     pub fn advance_cycles(&mut self, n: u8) -> Option<Mode> {
+        // if !self.control.display_enabled {
+        //     return Some(self.status.mode)
+        // }
+
         self.cycles = self.cycles.wrapping_add(n as u32);
         self.mode_clock = self.mode_clock.wrapping_add(n as u32);
 
@@ -278,7 +282,6 @@ impl LCD {
             }
             Mode::VRAM => {
                 if self.mode_clock >= 252 {
-                    // self.render_line();
                     self.status.mode = Mode::HBlank;
                     Some(self.status.mode)
                 } else {

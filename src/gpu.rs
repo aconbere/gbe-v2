@@ -170,10 +170,6 @@ impl Device for GPU {
             _ => panic!("Invalid GPU Memory Range: {:X}", address),
         }
 
-        if value != 0 {
-            println!("GOTCHA {:X} {}", address, value);
-        }
-
         self.update_buffer();
     }
 
