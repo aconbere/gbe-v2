@@ -8,7 +8,7 @@ use crate::rom::Rom;
 enum DeviceRef {
     BootRom,
     GameRom,
-    GPU,
+    VRam,
     TileMap,
     InterruptTable,
     CartridgeHeader,
@@ -41,10 +41,10 @@ impl MMU {
 
     pub fn get(&self, address: u16) -> u8 {
         match self.get_device(address) {
-            (start, DeviceRef::GPU) => self.gpu.get(address - start),
+            (_, DeviceRef::VRam) => self.gpu.get(address),
             (start, DeviceRef::BootRom) => self.boot_rom.get(address - start),
             (start, DeviceRef::GameRom) => self.cartridge.get(address - start),
-            (start, DeviceRef::TileMap) => self.gpu.tile_map.get(address - start),
+            (_start, DeviceRef::TileMap) => self.gpu.get(address),
             (start, DeviceRef::IORegisters) => {
                 if address == 0xFF40 {
                     self.lcd.get(address - start)
@@ -66,10 +66,10 @@ impl MMU {
 
     pub fn set(&mut self, address: u16, value: u8) {
         match self.get_device(address) {
-            (start, DeviceRef::GPU) => self.gpu.set(address - start, value),
+            (_start, DeviceRef::VRam) => self.gpu.set(address, value),
             (start, DeviceRef::BootRom) => self.boot_rom.set(address - start, value),
             (start, DeviceRef::GameRom) => self.cartridge.set(address - start, value),
-            (start, DeviceRef::TileMap) => self.gpu.tile_map.set(address - start, value),
+            (_start, DeviceRef::TileMap) => self.gpu.set(address, value),
             (start, DeviceRef::IORegisters) => {
                 match address {
                     0xFF40..=0xFF4B => self.lcd.set(address - start, value),
@@ -99,7 +99,7 @@ impl MMU {
             },
             0x0100..=0x014F => (0x0100, DeviceRef::CartridgeHeader),
             0x0150..=0x3FFF => (0x0150, DeviceRef::GameRom),
-            0x8000..=0x97FF => (0x8000, DeviceRef::GPU),
+            0x8000..=0x97FF => (0x8000, DeviceRef::VRam),
             0x9800..=0x9FFF => (0x9800, DeviceRef::TileMap),
             0xFF00..=0xFF7F => (0xFF00, DeviceRef::IORegisters),
             0xFF80..=0xFFFE => (0xFF80, DeviceRef::ZeroPage),
@@ -147,6 +147,5 @@ mod tests {
         m.set(a, 0x19);
         assert_eq!(m.get(a), 0x19);
         assert_eq!(m.gpu.tile_map.get(272), 0x19);
-        assert_eq!(m.gpu.get_map(272, false), 0x19);
     }
 }

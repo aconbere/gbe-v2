@@ -10,7 +10,7 @@ pub enum Pixel {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Tile {
-    data: [[Pixel; 8];8],
+    pub data: [[Pixel; 8];8],
 }
 
 /*

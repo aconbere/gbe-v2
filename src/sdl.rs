@@ -8,8 +8,8 @@ use sdl2::rect::Point;
 use sdl2::rect::Rect;
 
 use crate::palette::Shade;
-use crate::framebuffer::Framebuffer;
 use crate::cpu::CPU;
+use crate::framebuffer;
 
 use anyhow;
 use rate_limiter::RateLimiter;
@@ -39,16 +39,17 @@ impl SDL {
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
 
-        let scale = 4;
-
         let window = video_subsystem
-            .window("Gameboy", ((160 + 3) * SCALE) + 256, (144 + 2) * SCALE)
+            .window("Gameboy",
+                (160 * SCALE) + 256,
+                144 * SCALE
+            )
             .position_centered()
             .build()?;
 
-        let mut canvas = window.into_canvas().software().build()?;
+        let canvas = window.into_canvas().software().build()?;
 
-        canvas.set_scale(scale as f32, scale as f32).unwrap();
+        // canvas.set_scale(scale as f32, scale as f32).unwrap();
 
         Ok(SDL {
             state: State::Running,
@@ -76,16 +77,14 @@ impl SDL {
     /* For each pixel in the framebuffer render the palette shade into a point of
      * a specific color on the canvas.
      */
-    pub fn draw_frame(&mut self, origin_x:i32, origin_y: i32, framebuffer: &Framebuffer) {
+    pub fn draw_frame(&mut self, origin_x:i32, origin_y: i32, buffer: &framebuffer::Buffer) {
         self.canvas.set_draw_color(Color::RGBA(255, 0, 0, 255));
-        self.canvas.draw_rect(Rect::new(origin_x, origin_y, 162, 146)).unwrap();
-        self.canvas.set_draw_color(Color::RGBA(0, 0, 0, 0));
+        self.canvas.draw_rect(Rect::new(origin_x, origin_y, 162, 144)).unwrap();
 
-        for x in 0..160 {
-            for y in 0..144 {
-                let i = (y * 160) + x;
-                let v = framebuffer.get(i);
-                match v {
+        for y in 0..144 {
+            for x in 0..160 {
+                let shade = buffer[y][x];
+                match shade {
                     Shade::White => {
                         self.canvas.set_draw_color(Color::RGBA(255, 255, 255, 255))
                     }
@@ -99,7 +98,14 @@ impl SDL {
                         self.canvas.set_draw_color(Color::RGBA(0, 0, 0, 255))
                     }
                 }
-                self.canvas.draw_point(Point::new(x as i32 + origin_x + 1, y as i32 + origin_y + 1)).unwrap();
+
+                let rx = (x as i32 + origin_x) * SCALE as i32;
+                let ry = (y as i32 + origin_y) * SCALE as i32;
+
+                self.canvas.fill_rect(
+                    Rect::new(rx, ry, SCALE, SCALE)
+                ).unwrap();
+
             }
         }
     }
@@ -122,7 +128,9 @@ impl SDL {
                         self.canvas.set_draw_color(Color::RGBA(0, 0, 0, 255))
                     }
                 }
-                self.canvas.draw_point(Point::new(x as i32 + origin_x + 1, y as i32 + origin_y + 1)).unwrap();
+                self.canvas.draw_point(
+                    Point::new(x as i32 + origin_x, y as i32 + origin_y)
+                ).unwrap();
             }
         }
     }
@@ -134,16 +142,17 @@ impl SDL {
             match self.state {
                 State::InstructionAdvance => {
                     cpu.next_instruction();
-                    self.draw_frame(0,0, &cpu.framebuffer);
+                    self.draw_frame(0,0, &cpu.buffer);
 
                     self.canvas.present();
                     self.state = State::Paused;
                 }
+
                 State::Running | State::FrameAdvance => {
                     cpu.next_frame();
 
-                    self.draw_frame(0,0, &cpu.framebuffer);
-                    self.draw_tile_map((SCALE * 162) as i32, 0, &cpu.get_full_background());
+                    self.draw_frame(0,0, &cpu.buffer);
+                    self.draw_tile_map(160*SCALE as i32,0, &cpu.mmu.gpu.buffer);
 
                     self.canvas.present();
 
@@ -153,7 +162,7 @@ impl SDL {
                 }
                 State::Paused => {
                     self.canvas.clear();
-                    self.draw_frame(0,0, &cpu.framebuffer);
+                    self.draw_frame(0,0, &cpu.buffer);
                     self.canvas.present();
                 }
             }

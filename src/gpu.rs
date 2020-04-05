@@ -1,5 +1,7 @@
 use crate::tile::Tile;
 use crate::device::Device;
+use crate::palette::Shade;
+use crate::tile::Pixel;
 use std::fmt;
 
 const VRAM_BEGIN: usize = 0x8000;
@@ -7,22 +9,30 @@ const VRAM_END: usize = 0x9FFF;
 const VRAM_SIZE: usize = VRAM_END - VRAM_BEGIN + 1;
 
 pub struct TileMap {
-    pub storage: [u8; 2048]
+    pub storage: [[u8; 32]; 64],
 }
 
 impl TileMap {
     pub fn new() -> TileMap {
         TileMap {
-            storage: [0; 2048],
+            storage: [[0; 32]; 64],
+        }
+    }
+
+    pub fn map(&self, y: u8, x: u8, bank: bool) -> u8 {
+        if bank {
+            self.storage[(y as usize) + 32][x as usize]
+        } else {
+            self.storage[y as usize][x as usize]
         }
     }
 }
 
 impl fmt::Display for TileMap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for i in 0..31 {
-            for j in 0..31 {
-                write!(f, "{:X}", self.storage[(i * 32) + j])?;
+        for y in 0..32 {
+            for x in 0..32 {
+                write!(f, "{:X}", self.storage[y][x])?;
             }
             write!(f, "\n")?;
         }
@@ -36,7 +46,10 @@ impl Device for TileMap {
             panic!("address out of range for tile map: {:X}", address);
         }
 
-        self.storage[address as usize] 
+        let y = address / 32;
+        let x = address - (y * 32);
+
+        self.storage[y as usize][x as usize] 
     }
 
     fn set(&mut self, address: u16, value: u8) {
@@ -44,68 +57,30 @@ impl Device for TileMap {
             panic!("address out of range for tile map: {:X}", address);
         }
 
-        self.storage[address as usize] = value;
+        let y = address / 32;
+        let x = address - (y * 32);
+
+        self.storage[y as usize][x as usize] = value;
     }
 }
 
-pub struct GPU {
-    vram: [u8; VRAM_SIZE],
+pub struct VRam {
+    storage: [u8; VRAM_SIZE],
     pub tile_set: [Tile; 384],
-    pub tile_map: TileMap,
 }
 
-/* VRAM layout
- * 8000-87FF: First part of tile set #1
- * 8800-8FFF: Second part of tile set #1 / First part of tile set #2
- * 9000-97FF: Second part of tile set #2
- */
-
-impl GPU {
-    pub fn new() -> GPU {
-        GPU {
-            vram: [0; VRAM_SIZE],
+impl VRam {
+    pub fn new() -> VRam {
+        VRam {
+            storage: [0; VRAM_SIZE],
             tile_set: [Tile::zero(); 384],
-            tile_map: TileMap::new(),
         }
-    }
-
-    pub fn get_tile(&self, i: u8, bank: bool) -> Tile {
-        // println!("Tile::tile_index: {} {}", i, bank);
-        if bank {
-            /* In bank 2 the index is treated as a signed value referenced from the top of the
-             * first bank at index 256
-             */
-            let ii8: i8 = i as i8;
-            let top: i16 = 256;
-            let index = top - (ii8 as i16);
-
-            self.tile_set[index as usize]
-        } else {
-            self.tile_set[i as usize]
-        }
-    }
-
-    pub fn get_map(&self, i: u16, bank: bool) -> u8 {
-        if i > 1023 {
-            panic!("address out of range for tile map: {:X}", i);
-        }
-
-        if i == 272 {
-            println!("GPU::get_map: {} {}", i, self.tile_map.get(272));
-        }
-
-        if bank {
-            self.tile_map.get((i as u16) + 1023)
-        } else {
-            self.tile_map.get(i as u16)
-        }
-
     }
 }
 
-impl Device for GPU {
-    fn set(&mut self, address: u16, value: u8) {
-        self.vram[address as usize] = value;
+impl Device for VRam {
+    fn set(&mut self, address: u16, value: u8) { 
+        self.storage[address as usize] = value;
 
         /* Tile data is stored in a sequence of pairs of bytes
          * but it always starts on the even byte, this allows
@@ -120,16 +95,94 @@ impl Device for GPU {
         /* Rows are two bytes long */
         let row_index = ((address % 16) / 2) as u8;
 
-        let top_byte = self.vram[normalized_index];
-        let bottom_byte = self.vram[normalized_index + 1];
+        let top_byte = self.storage[normalized_index];
+        let bottom_byte = self.storage[normalized_index + 1];
 
         // println!("Tile::set tile_index {}", tile_index);
         // println!("Tile::set top_byte bottom_byte {}, {}", top_byte, bottom_byte);
         self.tile_set[tile_index as usize].set_row(row_index, top_byte, bottom_byte);
+
+        // Need to update the buffer at this point
     }
 
     fn get(&self, address: u16) -> u8 {
-        self.vram[address as usize]
+        self.storage[address as usize]
+    }
+}
+
+pub struct GPU {
+    vram: VRam,
+    pub tile_map: TileMap,
+    pub buffer: [[Shade;256];256],
+}
+
+/* VRAM layout
+ * 8000-87FF: First part of tile set #1
+ * 8800-8FFF: Second part of tile set #1 / First part of tile set #2
+ * 9000-97FF: Second part of tile set #2
+ */
+
+impl GPU {
+    pub fn new() -> GPU {
+        GPU {
+            vram: VRam::new(),
+            tile_map: TileMap::new(),
+            buffer: [[Shade::White;256];256],
+        }
+    }
+
+    fn draw_tile(&mut self, oy: u8, ox: u8, tile: Tile) {
+        for y in 0..8 as usize {
+            for x in 0..8 as usize {
+                let p = tile.data[y][x];
+
+                /* This might actually be better done as storing pixels
+                 * and then having them shaded at the end
+                 */
+                let shade = match p {
+                    Pixel::P0 => Shade::White,
+                    Pixel::P1 => Shade::LightGrey,
+                    Pixel::P2 => Shade::DarkGrey,
+                    Pixel::P3 => Shade::Black,
+                };
+
+                self.buffer[(oy * 8) as usize + y][(ox * 8) as usize + x] = shade;
+            }
+        }
+    }
+
+    fn update_buffer(&mut self) {
+        for y in 0..32 {
+            for x in 0..32 {
+                let mapping = self.tile_map.map(y, x, false);
+                let tile = self.vram.tile_set[mapping as usize];
+                self.draw_tile(y, x, tile);
+            }
+        }
+    }
+}
+
+impl Device for GPU {
+    fn set(&mut self, address: u16, value: u8) {
+        match address {
+            0x8000..=0x97FF => self.vram.set(address - 0x8000, value),
+            0x9800..=0x9FFF => self.tile_map.set(address - 0x9800, value),
+            _ => panic!("Invalid GPU Memory Range: {:X}", address),
+        }
+
+        if value != 0 {
+            println!("GOTCHA {:X} {}", address, value);
+        }
+
+        self.update_buffer();
+    }
+
+    fn get(&self, address: u16) -> u8 {
+        match address {
+            0x8000..=0x97FF => self.vram.get(address - 0x8000),
+            0x9800..=0x9FFF => self.tile_map.get(address - 0x9800),
+            _ => panic!("Invalid GPU Memory Range: {:X}", address),
+        }
     }
 }
 
@@ -149,10 +202,4 @@ mod tests {
         assert_eq!(t.get(272), 0x19);
     }
 
-    #[test]
-    fn test_get_set_tile_map_gpu() {
-        let mut g = GPU::new();
-        g.tile_map.set(272, 0x19);
-        assert_eq!(g.get_map(272, false), 0x19);
-    }
 }

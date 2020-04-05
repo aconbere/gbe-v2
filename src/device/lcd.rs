@@ -1,4 +1,3 @@
-use crate::framebuffer::Framebuffer;
 use crate::device::Device;
 use crate::palette::{get_shade, Shade};
 use crate::tile::Pixel;
@@ -226,8 +225,6 @@ pub struct LCD {
     pub lines: u8,
     mode_clock: u32,
 
-    pub framebuffer: Framebuffer,
-
     pub control: ControlRegister,
     pub status: StatusRegister,
 
@@ -249,8 +246,6 @@ impl LCD {
             cycles: 0,
             lines: 0,
             mode_clock: 0,
-
-            framebuffer: Framebuffer::new(),
 
             control: ControlRegister::new(),
             status: StatusRegister::new(),

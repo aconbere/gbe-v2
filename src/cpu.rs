@@ -1,124 +1,18 @@
 use crate::register::{Registers, Registers16, Registers8};
 use crate::mmu::MMU;
 use crate::bytes;
-use crate::framebuffer::Framebuffer;
 use crate::device::lcd::Mode;
-use crate::tile::Pixel;
-use crate::palette::Shade;
-use crate::device::Device;
+use crate::framebuffer;
 
 mod instructions;
 
 use instructions::{JumpFlag, RstFlag};
 
-fn render_line(mmu: &mut MMU, framebuffer: &mut Framebuffer) {
-    // println!("cpu::render_line");
-    // get our y-offset, this wont change per scan line
-
-    let mut i = 0;
-
-    // for each pixel in a line
-    while i < 160 {
-        /* The Tile Map is a 32x32 array where every byte is a reference to where in the tile data
-         * to pull tile data from.
-         *
-         * So for every line we're on, we jump forward 32 tiles. We take the current x scroll
-         * position and add to it where we are in rendering this line (i). Then we want to find
-         * which tile we would land on, so divide our current index (i) by 32 to find which of the
-         * 32 tiles we are on.
-         *
-         * We'll later need to know which index in the tile we're at so record that while we're at
-         * it.
-         */
-
-        /* y offset tells us which row in on the grid we're on.*/
-        let y_offset = mmu.lcd.get_y_offset();
-        // println!("CPU::render_tile y_offset: {}", y_offset);
-
-        /* x offset tells us which pixel in the line we're on. we have to take this and map it into
-         * which tile it would be
-         */
-        let x_offset = mmu.lcd.scroll_x + i;
-
-        // println!("CPU::render_tile x_offset: {}", y_offset);
-
-        /* This block determines which tile we are on in the 32x32 grid. */
-        let tile_index_y = y_offset / 8;
-        let tile_index_x = x_offset / 8;
-
-        println!("tile index x: {}, tile index y: {}", tile_index_x, tile_index_y);
-
-        /* Figure out where to to find the data in the tile map index */
-        let tile_map_index = (tile_index_y as u16 * 32) + tile_index_x as u16;
-        // println!("TileMap: tile_map_index: {}", tile_map_index);
-
-        /* Find the tile data at the map index */
-        let tile_data_index = mmu.gpu.get_map(tile_map_index, mmu.lcd.control.tile_map);
-        if tile_data_index != 0 {
-            panic!("not zero!");
-        }
-        // println!("CPU::render_tile tile_data_index: {}", y_offset);
-
-        /* We check what tile data set is enabled and use the tile data index found previously to
-         * fetch a tile.
-         */
-        let tile = mmu.gpu.get_tile(tile_data_index, mmu.lcd.control.tile_data);
-
-        /* Once we have the tile we need to know which pixel we're on in the pixel
-         * in the x direction if we are on i = 0 then we need to take the x_offset and
-         * get the remainder from 8.
-         */
-        let pixel_index_y = y_offset % 8;
-        let pixel_index_x = if i == 0 { x_offset % 8 } else { 0 };
-
-        /* Once we have a tile, we need to actually index into the tile at the right location
-         * For each pixel in the tile render the pixel. Now... of course this can't be simple.
-         */
-        let row = tile.get_row(pixel_index_y);
-
-        for j in (pixel_index_x..8).rev() {
-            // println!("LCD Lines: {}", mmu.lcd.lines);
-            // println!("i: {}", i);
-
-            /* Frame index is the index into the linear array
-             * defined by the framebuffer
-             */
-            let frame_index = ((mmu.lcd.lines as u16) * 160) + (i as u16);
-
-            let pixel = row[j as usize];
-
-            if pixel != Pixel::P0 {
-                // println!("WTF");
-            }
-
-            let p = match pixel {
-                Pixel::P0 => Shade::White,
-                Pixel::P1 => Shade::LightGrey,
-                Pixel::P2 => Shade::DarkGrey,
-                Pixel::P3 => Shade::Black,
-            };
-
-            if p != Shade::White {
-                panic!("Shade:{:?}", p);
-            }
-
-            framebuffer.set(
-                frame_index as usize,
-                //mmu.lcd.bg_palette.map(pixel),
-                p,
-            );
-
-            i += 1;
-        }
-    }
-}
-
-
 pub struct CPU {
-    mmu: MMU,
+    pub mmu: MMU,
     registers: Registers,
 
-    pub framebuffer: Framebuffer,
+    pub buffer: framebuffer::Buffer,
     pub stopped: bool,
     pub halted: bool,
     interupts_enabled: bool,
@@ -129,25 +23,38 @@ impl CPU {
         CPU {
             mmu: mmu,
             registers: Registers::new(),
-
-            framebuffer: Framebuffer::new(),
+            buffer: framebuffer::new(),
             stopped: false,
             halted: false,
             interupts_enabled: false,
         }
     }
 
+    fn render_line(&mut self) {
+        /* Where are we in the lcd screen */
+        let y = self.mmu.lcd.lines as usize;
+
+        /* y offset tells us which row in on the grid we're on.*/
+        let bg_y = self.mmu.lcd.get_y_offset() as usize;
+
+        /* x offset tells us which pixel in the line we're on. we have to take this and map it into
+         * which tile it would be
+         */
+        let bg_x = self.mmu.lcd.scroll_x as usize;
+
+        for x in 0..160 as usize {
+            self.buffer[y][x] = self.mmu.gpu.buffer[bg_y][bg_x + x as usize];
+        }
+    }
+
+
     pub fn next_frame(&mut self) {
-        // println!("CPU::next_frame");
+        println!("CPU::next_frame");
         loop {
             match self.next_instruction() {
                 Some(Mode::OAM) => break,
-                Some(Mode::HBlank) => {
-                    render_line(&mut self.mmu, &mut self.framebuffer);
-                },
-                Some(Mode::VBlank) => {
-                    self.framebuffer.reset();
-                },
+                Some(Mode::HBlank) => self.render_line(),
+                Some(Mode::VBlank) => framebuffer::zero(&mut self.buffer),
                 _ => {},
             }
 
@@ -176,41 +83,11 @@ impl CPU {
         let opcode = self.fetch_opcode();
         let result = self.execute(opcode);
 
-        //println!("DEBUG: {:?}", result.name);
-        //println!("DEBUG: {:?}", self.registers);
+        // println!("DEBUG: {:?}", result.name);
+        // println!("DEBUG: {:?}", self.registers);
 
         self.mmu.lcd.advance_cycles(result.cycles)
     }
-
-    pub fn get_full_background(&self) -> [[Shade;256];256] {
-        let mut buffer = [[Shade::White;256];256];
-
-        for i in 0..1024 {
-            let mapping = self.mmu.gpu.tile_map.get(i);
-            let tile = self.mmu.gpu.tile_set[mapping as usize];
-            for ti in 0..8 {
-                let row = tile.get_row(ti);
-                for pixel in row.iter() {
-                    // the tile_map is 32 bytes wide matrix
-                    let f_y = i / 32;
-                    // i indexes tiles which are all 8 pixels wide
-                    let f_x = (i - (f_y * 32)) / 8;
-
-                    let shade = match pixel {
-                        Pixel::P0 => Shade::White,
-                        Pixel::P1 => Shade::LightGrey,
-                        Pixel::P2 => Shade::DarkGrey,
-                        Pixel::P3 => Shade::Black,
-                    };
-
-                    buffer[f_y as usize][f_x as usize] = shade;
-                }
-            }
-        }
-
-        buffer
-    }
-
 
     pub fn enable_interrupts(&mut self) {
         self.interupts_enabled = true;

@@ -1,31 +1,17 @@
 use crate::palette::Shade;
 
-type FB = [Shade; 23040];
+pub type Buffer = [[Shade;160];144];
 
-fn zero() -> FB {
-    [Shade::White; 23040]
-}
+// pub type InternalBuffer = [[Shade;256];256];
 
-pub struct Framebuffer {
-    buffer: FB
-}
-
-impl Framebuffer {
-    pub fn new() -> Framebuffer {
-        Framebuffer {
-            buffer: zero(),
+pub fn zero(buffer: &mut Buffer) {
+    for y in 0..143 {
+        for x in 0..159 {
+            buffer[y][x] = Shade::White
         }
     }
+}
 
-    pub fn reset(&mut self) {
-        self.buffer = zero()
-    }
-
-    pub fn set(&mut self, a: usize, v: Shade) {
-        self.buffer[a] = v
-    }
-
-    pub fn get(&self, a: usize) -> Shade {
-        self.buffer[a]
-    }
+pub fn new() -> Buffer {
+    [[Shade::White;160];144]
 }
