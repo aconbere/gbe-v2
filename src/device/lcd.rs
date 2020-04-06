@@ -1,6 +1,5 @@
 use crate::device::Device;
-use crate::palette::{get_shade, Shade};
-use crate::tile::Pixel;
+use crate::palette::{Palette};
 use crate::bytes;
 
 // 0xFF40 = control register
@@ -33,46 +32,6 @@ pub enum Mode {
     VBlank = 1,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Palette {
-    shades: [Shade;4],
-    value: u8,
-}
-
-impl Palette {
-    pub fn new() -> Palette {
-        Palette {
-            shades: [Shade::White;4],
-            value: 0,
-        }
-    }
-    
-    pub fn map(&self, px: Pixel) -> Shade {
-        self.shades[px as usize]
-    }
-
-}
-
-
-impl std::convert::From<u8> for Palette {
-    fn from(byte: u8) -> Self {
-        Palette {
-            value: byte,
-            shades: [
-                get_shade(byte, 0),
-                get_shade(byte, 1),
-                get_shade(byte, 2),
-                get_shade(byte, 3)
-            ],
-        }
-    }
-}
-
-impl std::convert::From<Palette> for u8 {
-    fn from(p: Palette) -> Self {
-        p.value
-    }
-}
 
 #[derive(Debug, Clone, Copy)]
 pub struct StatusRegister {
@@ -221,7 +180,7 @@ impl std::convert::From<ControlRegister> for u8 {
 }
 
 pub struct LCD {
-    cycles: u32,
+    pub cycles: u32,
     pub lines: u8,
     mode_clock: u32,
 
@@ -230,7 +189,7 @@ pub struct LCD {
 
     pub scroll_y: u8,
     pub scroll_x: u8,
-    pub lcd_y: u8,
+    //pub lcd_y: u8,
     pub ly_compare: u8,
     pub dma: u8,
     pub bg_palette: Palette,
@@ -251,7 +210,7 @@ impl LCD {
             status: StatusRegister::new(),
             scroll_y: 0,
             scroll_x: 0,
-            lcd_y: 0,
+            //lcd_y: 0,
             ly_compare: 0,
             dma: 0,
             bg_palette: Palette::new(),
@@ -263,19 +222,15 @@ impl LCD {
     }
     
 
-    pub fn advance_cycles(&mut self, n: u8) -> Option<Mode> {
-        // if !self.control.display_enabled {
-        //     return Some(self.status.mode)
-        // }
-
-        self.cycles = self.cycles.wrapping_add(n as u32);
-        self.mode_clock = self.mode_clock.wrapping_add(n as u32);
+    pub fn advance_cycles(&mut self, n: u8) -> Option<(Mode, Mode)> {
+        self.mode_clock += n as u32;
+        self.cycles += n as u32;
 
         match self.status.mode {
             Mode::OAM => {
                 if self.mode_clock >= 80 {
                     self.status.mode = Mode::VRAM;
-                    Some(self.status.mode)
+                    Some((Mode::OAM, self.status.mode))
                 } else {
                     None
                 }
@@ -283,7 +238,7 @@ impl LCD {
             Mode::VRAM => {
                 if self.mode_clock >= 252 {
                     self.status.mode = Mode::HBlank;
-                    Some(self.status.mode)
+                    Some((Mode::VRAM, self.status.mode))
                 } else {
                     None
                 }
@@ -296,10 +251,10 @@ impl LCD {
 
                     if self.lines == 144 {
                         self.status.mode = Mode::VBlank;
-                        Some(self.status.mode)
+                        Some((Mode::HBlank, self.status.mode))
                     } else {
                         self.status.mode = Mode::OAM;
-                        Some(self.status.mode)
+                        Some((Mode::HBlank, self.status.mode))
                     }
                 } else {
                     None
@@ -311,19 +266,18 @@ impl LCD {
                     self.lines += 1;
                 }
 
-                if self.lines == 153 {
+                if self.lines == 154 {
                     self.lines = 0;
+                    self.mode_clock = 0;
+                    self.cycles = 0;
+
                     self.status.mode = Mode::OAM;
-                    Some(self.status.mode)
+                    Some((Mode::VBlank, self.status.mode))
                 } else {
                     None
                 }
             }
         }
-    }
-
-    pub fn get_y_offset(&self) -> u8 {
-        self.lines.wrapping_add(self.scroll_y)
     }
 }
 
@@ -334,7 +288,7 @@ impl Device for LCD {
             0x0041 => u8::from(self.status),
             0x0042 => self.scroll_y,
             0x0043 => self.scroll_x,
-            0x0044 => self.lcd_y,
+            0x0044 => self.lines,
             0x0045 => self.ly_compare,
             0x0046 => self.dma,
             0x0047 => u8::from(self.bg_palette),
@@ -350,9 +304,12 @@ impl Device for LCD {
         match address {
             0x0040 => self.control = ControlRegister::from(v),
             0x0041 => self.status = StatusRegister::from(v),
-            0x0042 => self.scroll_y = v,
+            0x0042 => {
+                // println!("Scrolling y: {:X}", v);
+                self.scroll_y = v;
+            },
             0x0043 => self.scroll_x = v,
-            0x0044 => self.lcd_y = v,
+            0x0044 => self.lines = v,
             0x0045 => self.ly_compare = v,
             0x0046 => self.dma = v,
             0x0047 => self.bg_palette = Palette::from(v),

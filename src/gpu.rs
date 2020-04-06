@@ -1,8 +1,6 @@
 use crate::tile::Tile;
 use crate::device::Device;
-use crate::palette::Shade;
 use crate::tile::Pixel;
-use std::fmt;
 
 const VRAM_BEGIN: usize = 0x8000;
 const VRAM_END: usize = 0x9FFF;
@@ -26,21 +24,19 @@ impl TileMap {
             self.storage[y as usize][x as usize]
         }
     }
-}
 
-impl fmt::Display for TileMap {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for y in 0..32 {
-            for x in 0..32 {
-                write!(f, "{:X}", self.storage[y][x])?;
-            }
-            write!(f, "\n")?;
+    pub fn set(&mut self, address: u16, value: u8) -> (u8, u8) {
+        if address > 2047 {
+            panic!("address out of range for tile map: {:X}", address);
         }
-        write!(f, "")
-    }
-}
 
-impl Device for TileMap {
+        let y = address / 32;
+        let x = address - (y * 32);
+
+        self.storage[y as usize][x as usize] = value;
+        (x as u8, y as u8)
+    }
+
     fn get(&self, address: u16) -> u8 {
         if address > 2047 {
             panic!("address out of range for tile map: {:X}", address);
@@ -50,17 +46,6 @@ impl Device for TileMap {
         let x = address - (y * 32);
 
         self.storage[y as usize][x as usize] 
-    }
-
-    fn set(&mut self, address: u16, value: u8) {
-        if address > 2047 {
-            panic!("address out of range for tile map: {:X}", address);
-        }
-
-        let y = address / 32;
-        let x = address - (y * 32);
-
-        self.storage[y as usize][x as usize] = value;
     }
 }
 
@@ -98,8 +83,6 @@ impl Device for VRam {
         let top_byte = self.storage[normalized_index];
         let bottom_byte = self.storage[normalized_index + 1];
 
-        // println!("Tile::set tile_index {}", tile_index);
-        // println!("Tile::set top_byte bottom_byte {}, {}", top_byte, bottom_byte);
         self.tile_set[tile_index as usize].set_row(row_index, top_byte, bottom_byte);
 
         // Need to update the buffer at this point
@@ -113,7 +96,7 @@ impl Device for VRam {
 pub struct GPU {
     vram: VRam,
     pub tile_map: TileMap,
-    pub buffer: [[Shade;256];256],
+    pub buffer: [[Pixel;256];512],
 }
 
 /* VRAM layout
@@ -127,7 +110,8 @@ impl GPU {
         GPU {
             vram: VRam::new(),
             tile_map: TileMap::new(),
-            buffer: [[Shade::White;256];256],
+            // Buffer is the background full rendered into shades
+            buffer: [[Pixel::P0;256];512],
         }
     }
 
@@ -136,22 +120,16 @@ impl GPU {
             for x in 0..8 as usize {
                 let p = tile.data[y][x];
 
-                /* This might actually be better done as storing pixels
-                 * and then having them shaded at the end
-                 */
-                let shade = match p {
-                    Pixel::P0 => Shade::White,
-                    Pixel::P1 => Shade::LightGrey,
-                    Pixel::P2 => Shade::DarkGrey,
-                    Pixel::P3 => Shade::Black,
-                };
+                let by = ((oy as usize) * 8) + y;
+                let bx = ((ox as usize) * 8) + x;
 
-                self.buffer[(oy * 8) as usize + y][(ox * 8) as usize + x] = shade;
+                self.buffer[by][bx] = p;
             }
         }
     }
 
-    fn update_buffer(&mut self) {
+
+    pub fn update_buffer(&mut self) {
         for y in 0..32 {
             for x in 0..32 {
                 let mapping = self.tile_map.map(y, x, false);
@@ -165,12 +143,15 @@ impl GPU {
 impl Device for GPU {
     fn set(&mut self, address: u16, value: u8) {
         match address {
-            0x8000..=0x97FF => self.vram.set(address - 0x8000, value),
-            0x9800..=0x9FFF => self.tile_map.set(address - 0x9800, value),
+            0x8000..=0x97FF => {
+                self.vram.set(address - 0x8000, value);
+            },
+            0x9800..=0x9FFF => {
+                self.tile_map.set(address - 0x9800, value);
+            },
             _ => panic!("Invalid GPU Memory Range: {:X}", address),
         }
 
-        self.update_buffer();
     }
 
     fn get(&self, address: u16) -> u8 {

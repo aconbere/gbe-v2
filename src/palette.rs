@@ -1,3 +1,45 @@
+use crate::tile::Pixel;
+
+#[derive(Debug, Clone, Copy)]
+pub struct Palette {
+    shades: [Shade;4],
+    value: u8,
+}
+
+impl Palette {
+    pub fn new() -> Palette {
+        Palette {
+            shades: [Shade::White;4],
+            value: 0,
+        }
+    }
+    
+    pub fn map(&self, px: Pixel) -> Shade {
+        self.shades[px as usize]
+    }
+
+}
+
+
+impl std::convert::From<u8> for Palette {
+    fn from(byte: u8) -> Self {
+        Palette {
+            value: byte,
+            shades: [
+                get_shade(byte, 0),
+                get_shade(byte, 1),
+                get_shade(byte, 2),
+                get_shade(byte, 3)
+            ],
+        }
+    }
+}
+
+impl std::convert::From<Palette> for u8 {
+    fn from(p: Palette) -> Self {
+        p.value
+    }
+}
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum Shade {
     White = 0,

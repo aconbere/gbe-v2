@@ -33,18 +33,8 @@ pub struct Tile {
 * 8. [2,1,0,0,3,1,3.2]
 */
 impl Tile {
-//     pub fn new(arr: [u8;16]) -> Tile {
-//         Tile {
-//             data: arr_to_tile(arr),
-//         }
-//     }
-
-    pub fn set_row(&mut self, index: u8, top_byte: u8, bottom_byte: u8) {
-        self.data[index as usize] = bytes_to_row(top_byte, bottom_byte);
-    }
-
-    pub fn get_row(&self, index: u8) -> [Pixel; 8] {
-        self.data[index as usize]
+    pub fn set_row(&mut self, row: u8, top_byte: u8, bottom_byte: u8) {
+        self.data[row as usize] = bytes_to_row(top_byte, bottom_byte);
     }
 
     pub fn zero() -> Tile {
@@ -54,29 +44,22 @@ impl Tile {
     }
 }
 
-// fn arr_to_tile(arr: [u8; 16]) -> [[Pixel;8];8] {
-//     let mut data = [[Pixel::P0; 8];8];
-// 
-//     for i in 0..=7 {
-//         let offset = (i * 2) as usize;
-// 
-//         data[i] = bytes_to_row(arr[offset], arr[offset + 1]);
-//     }
-// 
-//     data
-// }
-
 pub fn bytes_to_row(top_byte: u8, bottom_byte: u8) -> [Pixel;8] {
     let mut arr = [Pixel::P0;8];
 
-    for i in 0..=7 {
-        let bits = (bytes::check_bit(top_byte, i), bytes::check_bit(bottom_byte, i));
+    /* Pixels are encoded Most Significant to Least Significant
+     */
+    for i in 0..8 {
+        let byte_index = 7 - i;
+        let bits = (bytes::check_bit(top_byte, byte_index), bytes::check_bit(bottom_byte, byte_index));
+
         let p = match bits {
             (true, true) => Pixel::P3,
             (false, true) => Pixel::P2,
             (true, false) => Pixel::P1,
             (false, false) => Pixel::P0,
         };
+
         arr[i as usize] = p
     }
 

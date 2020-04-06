@@ -46,7 +46,7 @@ impl MMU {
             (start, DeviceRef::GameRom) => self.cartridge.get(address - start),
             (_start, DeviceRef::TileMap) => self.gpu.get(address),
             (start, DeviceRef::IORegisters) => {
-                if address == 0xFF40 {
+                if address >= 0xFF00 && address <= 0xFF4B {
                     self.lcd.get(address - start)
                 } else {
                     self.io.get(address - start)

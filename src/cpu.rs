@@ -35,13 +35,14 @@ impl CPU {
         let y = self.mmu.lcd.lines as usize;
 
         /* y offset tells us which row in the background buffer we're on.*/
-        let bg_y = self.mmu.lcd.get_y_offset() as usize;
+        let bg_y = y + self.mmu.lcd.scroll_y as usize;
 
         /* scroll x tells us which column in the background buffer we're on */
         let bg_x = self.mmu.lcd.scroll_x as usize;
 
         for x in 0..160 as usize {
-            self.buffer[y][x] = self.mmu.gpu.buffer[bg_y][bg_x + x as usize];
+            let p = self.mmu.gpu.buffer[bg_y][bg_x + x as usize];
+            self.buffer[y][x] = self.mmu.lcd.bg_palette.map(p);
         }
     }
 
@@ -49,9 +50,11 @@ impl CPU {
     pub fn next_frame(&mut self) {
         loop {
             match self.next_instruction() {
-                Some(Mode::OAM) => break,
-                Some(Mode::HBlank) => self.render_line(),
-                Some(Mode::VBlank) => framebuffer::zero(&mut self.buffer),
+                Some((Mode::VBlank, Mode::OAM)) => break,
+                Some((Mode::VRAM, Mode::HBlank)) => self.render_line(),
+                Some((Mode::HBlank, Mode::VBlank)) => {
+                    self.mmu.gpu.update_buffer();
+                }
                 _ => {},
             }
 
@@ -59,7 +62,6 @@ impl CPU {
                 break;
             }
         }
-
     }
 
     pub fn fetch_opcode(&mut self) -> u16{
@@ -76,7 +78,7 @@ impl CPU {
         }
     }
 
-    pub fn next_instruction(&mut self) -> Option<Mode> {
+    pub fn next_instruction(&mut self) -> Option<(Mode, Mode)> {
         let opcode = self.fetch_opcode();
         let result = self.execute(opcode);
 
