@@ -1,4 +1,6 @@
-use crate::tile::Pixel;
+use crate::pixel::Pixel;
+use crate::shade::Shade;
+use crate::bytes;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Palette {
@@ -40,15 +42,6 @@ impl std::convert::From<Palette> for u8 {
         p.value
     }
 }
-#[derive(PartialEq, Debug, Clone, Copy)]
-pub enum Shade {
-    White = 0,
-    LightGrey = 1,
-    DarkGrey = 2,
-    Black = 3,
-}
-
-const MASK:u8 = 0b000000011;
 
 /* Shades are stored in palettes as follows
  * Bit 7-6 - Shade for Color Number 3
@@ -64,15 +57,37 @@ pub fn get_shade(byte: u8, i:u8) -> Shade {
         panic!("invalid shade index must be less than 4 {:X}", i);
     }
 
-    let shift = i * 2;
+    let i = i * 2;
 
-    let v = (byte & (MASK << shift)) >> shift;
+    let v = (
+        bytes::check_bit(byte, i),
+        bytes::check_bit(byte, i + 1),
+    );
 
     match v {
-        0 => Shade::White,
-        1 => Shade::LightGrey,
-        2 => Shade::DarkGrey,
-        3 => Shade::Black,
-        _ => panic!("Invalid shade index: {:X}", i),
+        (false, false) => Shade::White,
+        (false, true) => Shade::LightGrey,
+        (true, false) => Shade::DarkGrey,
+        (true, true)  => Shade::Black,
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_shade() {
+        assert_eq!(get_shade(0b1100_0000, 3), Shade::Black);
+        assert_eq!(get_shade(0b0011_0000, 2), Shade::Black);
+        assert_eq!(get_shade(0b0000_1100, 1), Shade::Black);
+        assert_eq!(get_shade(0b0000_0011, 0), Shade::Black);
+
+        assert_eq!(get_shade(0b0000_0000, 3), Shade::White);
+        assert_eq!(get_shade(0b0100_0000, 3), Shade::DarkGrey);
+        assert_eq!(get_shade(0b1000_0000, 3), Shade::LightGrey);
+        assert_eq!(get_shade(0b1100_0000, 3), Shade::Black);
+    }
+}
+

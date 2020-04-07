@@ -5,6 +5,8 @@ mod sdl;
 mod gameboy;
 mod framebuffer;
 mod palette;
+mod pixel;
+mod shade;
 mod register;
 mod bytes;
 mod cpu;

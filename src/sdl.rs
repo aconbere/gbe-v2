@@ -7,8 +7,9 @@ use sdl2::pixels::Color;
 use sdl2::rect::Point;
 use sdl2::rect::Rect;
 
-use crate::palette::Shade;
+use crate::shade::Shade;
 use crate::cpu::CPU;
+use crate::tile::Tile;
 
 use anyhow;
 use rate_limiter::RateLimiter;
@@ -83,20 +84,7 @@ impl SDL {
         for y in 0..144 {
             for x in 0..160 {
                 let shade = cpu.buffer[y][x];
-                match shade {
-                    Shade::White => {
-                        self.canvas.set_draw_color(Color::RGBA(255, 255, 255, 255))
-                    }
-                    Shade::LightGrey => {
-                        self.canvas.set_draw_color(Color::RGBA(169, 169, 169, 255))
-                    }
-                    Shade::DarkGrey => {
-                        self.canvas.set_draw_color(Color::RGBA(211, 211, 211, 255))
-                    }
-                    Shade::Black => {
-                        self.canvas.set_draw_color(Color::RGBA(0, 0, 0, 255))
-                    }
-                }
+                self.set_draw_color(shade);
 
                 let rx = (x as i32 + origin_x) * SCALE as i32;
                 let ry = (y as i32 + origin_y) * SCALE as i32;
@@ -109,25 +97,29 @@ impl SDL {
         }
     }
 
+    pub fn set_draw_color(&mut self, shade: Shade) {
+        match shade {
+            Shade::White => {
+                self.canvas.set_draw_color(Color::RGBA(255, 255, 255, 255))
+            }
+            Shade::LightGrey => {
+                self.canvas.set_draw_color(Color::RGBA(211, 211, 211, 255))
+            }
+            Shade::DarkGrey => {
+                self.canvas.set_draw_color(Color::RGBA(169, 169, 169, 255))
+            }
+            Shade::Black => {
+                self.canvas.set_draw_color(Color::RGBA(0, 0, 0, 255))
+            }
+        }
+    }
+
     pub fn draw_tile_map(&mut self, origin_x: i32, origin_y: i32, cpu: &CPU) {
         for y in 0..256 {
             for x in 0..256 {
                 let pixel = cpu.mmu.gpu.buffer[y][x];
                 let shade = cpu.mmu.lcd.bg_palette.map(pixel);
-                match shade {
-                    Shade::White => {
-                        self.canvas.set_draw_color(Color::RGBA(255, 255, 255, 255))
-                    }
-                    Shade::LightGrey => {
-                        self.canvas.set_draw_color(Color::RGBA(211, 211, 211, 255))
-                    }
-                    Shade::DarkGrey => {
-                        self.canvas.set_draw_color(Color::RGBA(169, 169, 169, 255))
-                    }
-                    Shade::Black => {
-                        self.canvas.set_draw_color(Color::RGBA(0, 0, 0, 255))
-                    }
-                }
+                self.set_draw_color(shade);
 
                 self.canvas.draw_point(
                     Point::new(x as i32 + origin_x, y as i32 + origin_y)
@@ -144,7 +136,35 @@ impl SDL {
         ).unwrap();
     }
 
-    fn draw_tiles(origin_x: i32, origin_y: 132, cpu: &CPU) {
+    fn draw_tiles(&mut self, origin_x: i32, origin_y: i32, cpu: &CPU) {
+        // 12 rows of tiles
+        for iy in 0..12 {
+            // read across for 32 tiles per row (256 pixels)
+            for ix in 0..32 {
+                let tile_index = (iy * 32) + ix;
+                let tile = cpu.mmu.gpu.vram.tile_set[tile_index];
+                self.draw_tile(
+                    origin_x + (ix as i32 * 8),
+                    origin_y + (iy as i32  * 8),
+                    tile,
+                    cpu);
+
+            }
+        }
+    }
+
+    fn draw_tile(&mut self, origin_x: i32, origin_y: i32, tile: Tile, cpu: &CPU) {
+        for y in 0..8 as usize {
+            for x in 0..8 as usize {
+                let pixel = tile.data[y][x];
+                let shade = cpu.mmu.lcd.bg_palette.map(pixel);
+                self.set_draw_color(shade);
+
+                self.canvas.draw_point(
+                    Point::new(x as i32 + origin_x, y as i32 + origin_y)
+                ).unwrap();
+            }
+        }
     }
 
     pub fn start(&mut self, cpu: &mut CPU) {
@@ -157,7 +177,7 @@ impl SDL {
 
                     self.draw_frame(0,0, &cpu);
                     self.draw_tile_map(160*SCALE as i32, 0, &cpu);
-                    // self.draw_frame_count(160 * SCALE as i32, 256, cpu);
+                    self.draw_tiles(160*SCALE as i32, 256, &cpu);
 
                     self.canvas.present();
 

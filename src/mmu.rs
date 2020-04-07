@@ -146,6 +146,5 @@ mod tests {
         let a = 0x9800 + 272;
         m.set(a, 0x19);
         assert_eq!(m.get(a), 0x19);
-        assert_eq!(m.gpu.tile_map.get(272), 0x19);
     }
 }

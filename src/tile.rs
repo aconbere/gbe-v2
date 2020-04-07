@@ -1,12 +1,5 @@
 use crate::bytes;
-
-#[derive(PartialEq, Debug, Clone, Copy)]
-pub enum Pixel {
-    P0 = 0,
-    P1 = 1,
-    P2 = 2,
-    P3 = 3,
-}
+use crate::pixel::Pixel;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Tile {
@@ -34,7 +27,23 @@ pub struct Tile {
 */
 impl Tile {
     pub fn set_row(&mut self, row: u8, top_byte: u8, bottom_byte: u8) {
-        self.data[row as usize] = bytes_to_row(top_byte, bottom_byte);
+        for i in 0..8 {
+            let byte_index = 7 - i;
+
+            let bits = (
+                bytes::check_bit(top_byte, byte_index),
+                bytes::check_bit(bottom_byte, byte_index),
+            );
+
+            let p = match bits {
+                (true, true) => Pixel::P3,
+                (false, true) => Pixel::P2,
+                (true, false) => Pixel::P1,
+                (false, false) => Pixel::P0,
+            };
+
+            self.data[row as usize][i as usize] = p;
+        }
     }
 
     pub fn zero() -> Tile {
@@ -42,26 +51,4 @@ impl Tile {
             data: [[Pixel::P0;8];8],
         }
     }
-}
-
-pub fn bytes_to_row(top_byte: u8, bottom_byte: u8) -> [Pixel;8] {
-    let mut arr = [Pixel::P0;8];
-
-    /* Pixels are encoded Most Significant to Least Significant
-     */
-    for i in 0..8 {
-        let byte_index = 7 - i;
-        let bits = (bytes::check_bit(top_byte, byte_index), bytes::check_bit(bottom_byte, byte_index));
-
-        let p = match bits {
-            (true, true) => Pixel::P3,
-            (false, true) => Pixel::P2,
-            (true, false) => Pixel::P1,
-            (false, false) => Pixel::P0,
-        };
-
-        arr[i as usize] = p
-    }
-
-    arr
 }

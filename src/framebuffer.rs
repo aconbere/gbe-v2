@@ -1,4 +1,4 @@
-use crate::palette::Shade;
+use crate::shade::Shade;
 
 pub type Buffer = [[Shade;160];144];
 

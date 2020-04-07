@@ -1,6 +1,6 @@
 use crate::tile::Tile;
 use crate::device::Device;
-use crate::tile::Pixel;
+use crate::pixel::Pixel;
 
 const VRAM_BEGIN: usize = 0x8000;
 const VRAM_END: usize = 0x9FFF;
@@ -34,6 +34,7 @@ impl TileMap {
         let x = address - (y * 32);
 
         self.storage[y as usize][x as usize] = value;
+
         (x as u8, y as u8)
     }
 
@@ -74,18 +75,17 @@ impl Device for VRam {
          */
         let normalized_index = make_even(address) as usize;
 
+        /* Tiles are two bytes */
+        let top_byte = self.storage[normalized_index];
+        let bottom_byte = self.storage[normalized_index + 1];
+
         /* A tile is found every 16 bytes */
-        let tile_index = address / 16;
+        let tile_index = address as usize  / 16;
 
         /* Rows are two bytes long */
         let row_index = ((address % 16) / 2) as u8;
 
-        let top_byte = self.storage[normalized_index];
-        let bottom_byte = self.storage[normalized_index + 1];
-
-        self.tile_set[tile_index as usize].set_row(row_index, top_byte, bottom_byte);
-
-        // Need to update the buffer at this point
+        self.tile_set[tile_index].set_row(row_index, top_byte, bottom_byte);
     }
 
     fn get(&self, address: u16) -> u8 {
@@ -94,7 +94,7 @@ impl Device for VRam {
 }
 
 pub struct GPU {
-    vram: VRam,
+    pub vram: VRam,
     pub tile_map: TileMap,
     pub buffer: [[Pixel;256];512],
 }
@@ -110,31 +110,26 @@ impl GPU {
         GPU {
             vram: VRam::new(),
             tile_map: TileMap::new(),
-            // Buffer is the background full rendered into shades
+            // Buffer is the background full rendered
             buffer: [[Pixel::P0;256];512],
         }
     }
 
-    fn draw_tile(&mut self, oy: u8, ox: u8, tile: Tile) {
+    fn draw_tile(&mut self, oy: usize, ox: usize, tile: Tile) {
         for y in 0..8 as usize {
             for x in 0..8 as usize {
                 let p = tile.data[y][x];
-
-                let by = ((oy as usize) * 8) + y;
-                let bx = ((ox as usize) * 8) + x;
-
-                self.buffer[by][bx] = p;
+                self.buffer[oy + y][ox + x] = p;
             }
         }
     }
-
 
     pub fn update_buffer(&mut self) {
         for y in 0..32 {
             for x in 0..32 {
                 let mapping = self.tile_map.map(y, x, false);
                 let tile = self.vram.tile_set[mapping as usize];
-                self.draw_tile(y, x, tile);
+                self.draw_tile(y as usize * 8, x as usize * 8, tile);
             }
         }
     }
@@ -179,4 +174,18 @@ mod tests {
         assert_eq!(t.get(272), 0x19);
     }
 
+    #[test]
+    fn test_vram_set() {
+        let mut vram = VRam::new();
+        /* Set the first tile in the tileset to have pixel values
+         * [P3 P2 P1 P0]
+         */
+        vram.set(0x0000, 0b1010_0000);
+        vram.set(0x0001, 0b1100_0000);
+
+        assert_eq!(vram.tile_set[0].data[0][0], Pixel::P3);
+        assert_eq!(vram.tile_set[0].data[0][1], Pixel::P2);
+        assert_eq!(vram.tile_set[0].data[0][2], Pixel::P1);
+        assert_eq!(vram.tile_set[0].data[0][3], Pixel::P0);
+    }
 }
