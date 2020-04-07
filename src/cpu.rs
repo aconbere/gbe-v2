@@ -82,8 +82,8 @@ impl CPU {
         let opcode = self.fetch_opcode();
         let result = self.execute(opcode);
 
-        // println!("DEBUG: {:?}", result.name);
-        // println!("DEBUG: {:?}", self.registers);
+        println!("DEBUG: {:?}", result.name);
+        println!("DEBUG: {:?}", self.registers);
 
         self.mmu.lcd.advance_cycles(result.cycles)
     }
