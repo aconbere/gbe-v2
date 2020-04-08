@@ -1,28 +1,40 @@
 use crate::bytes;
 use crate::gpu::GPU;
 use crate::device::Device;
-use crate::device::ram::Ram;
+use crate::device::ram::{Ram2k, Ram8k, HighRam};
 use crate::device::lcd::LCD;
+use crate::device::interrupt_enable::InterruptEnable;
 use crate::rom::{BootRom, GameRom};
 
 enum DeviceRef {
     BootRom,
-    GameRom,
-    VRam,
-    TileMap,
     InterruptTable,
     CartridgeHeader,
+    GameRom,
+
+    VRam,
+    Ram,
+    TileMap,
+
+    SpriteTable,
+    Unused,
     IORegisters,
-    ZeroPage,
+    HighRam,
+    InterruptEnable,
 }
 
 pub struct MMU {
     boot_rom: BootRom,
     cartridge: GameRom,
-    io: Ram,
-    zero_page: Ram,
+    io: Ram2k,
+    ram: Ram8k,
+    high_ram: HighRam,
+    interrupt_enable: InterruptEnable,
+
+
     pub lcd: LCD,
     pub gpu: GPU,
+
     booted: bool,
 }
 
@@ -31,8 +43,11 @@ impl MMU {
         MMU {
             boot_rom: boot_rom,
             cartridge: game_rom,
-            io: Ram::new(),
-            zero_page: Ram::new(),
+            io: Ram2k::new(),
+            ram: Ram8k::new(),
+            high_ram: HighRam::new(),
+            interrupt_enable: InterruptEnable::new(),
+
             lcd: LCD::new(),
             gpu: GPU::new(),
             booted: false,
@@ -41,10 +56,14 @@ impl MMU {
 
     pub fn get(&self, address: u16) -> u8 {
         match self.get_device(address) {
-            (_, DeviceRef::VRam) => self.gpu.get(address),
             (start, DeviceRef::BootRom) => self.boot_rom.get(address - start),
+            (start, DeviceRef::InterruptTable) => self.cartridge.get(address - start),
+            (_, DeviceRef::VRam) => self.gpu.get(address),
+            (start, DeviceRef::Ram) => self.ram.get(address - start),
             (_start, DeviceRef::GameRom) => self.cartridge.get(address),
             (_start, DeviceRef::TileMap) => self.gpu.get(address),
+            (_start, DeviceRef::CartridgeHeader) => self.cartridge.get(address),
+            (_, DeviceRef::Unused) => 0x00,
             (start, DeviceRef::IORegisters) => {
                 if address >= 0xFF00 && address <= 0xFF4B {
                     self.lcd.get(address - start)
@@ -52,9 +71,9 @@ impl MMU {
                     self.io.get(address - start)
                 }
             },
-            (_start, DeviceRef::CartridgeHeader) => self.cartridge.get(address),
-            (start, DeviceRef::ZeroPage) => self.zero_page.get(address - start),
-            _ => panic!("Memory Not implemented: {:X}", address),
+            (start, DeviceRef::HighRam) => self.high_ram.get(address - start),
+            (start, DeviceRef::InterruptEnable) => self.interrupt_enable.get(address - start),
+            _ => panic!("Get Memory Not implemented: {:X}", address),
         }
     }
 
@@ -66,12 +85,14 @@ impl MMU {
 
     pub fn set(&mut self, address: u16, value: u8) {
         match self.get_device(address) {
+            (_start, DeviceRef::BootRom) => panic!("BootRom is read only: {:X}", address),
+            (_start, DeviceRef::InterruptTable) => panic!("InterruptTable is read only: {:X}", address),
             (_start, DeviceRef::VRam) => self.gpu.set(address, value),
-            (start, DeviceRef::BootRom) => self.boot_rom.set(address - start, value),
-            (_start, DeviceRef::GameRom) => {
-                panic!("GameRom is read only: {}", address)
-            },
+            (_start, DeviceRef::GameRom) => panic!("GameRom is read only: {:X}", address),
             (_start, DeviceRef::TileMap) => self.gpu.set(address, value),
+            (start, DeviceRef::Ram) => self.ram.set(address - start, value),
+            (_start, DeviceRef::CartridgeHeader) => panic!("Cartrdige Header is read only: {:X}", address),
+            (_, DeviceRef::Unused) => {},
             (start, DeviceRef::IORegisters) => {
                 match address {
                     0xFF40..=0xFF4B => self.lcd.set(address - start, value),
@@ -83,12 +104,10 @@ impl MMU {
                     _ => self.io.set(address - start, value),
                 }
             }
-            (_start, DeviceRef::CartridgeHeader) => {
-                panic!("Cartrdige Header is read only: {}", address);
+            (start, DeviceRef::HighRam) => self.high_ram.set(address - start, value),
+            (start, DeviceRef::InterruptEnable) => self.interrupt_enable.set(address - start, value),
 
-            }
-            (start, DeviceRef::ZeroPage) => self.zero_page.set(address - start, value),
-            _ => panic!("Memory Not implemented: {:X}", address),
+            _ => panic!("Set Memory Not implemented: {:X}", address),
         }
     }
 
@@ -108,11 +127,18 @@ impl MMU {
                 }
             },
             0x0100..=0x014F => (0x0100, DeviceRef::CartridgeHeader),
-            0x0150..=0x3FFF => (0x0150, DeviceRef::GameRom),
+            0x0150..=0x7FFF => (0x0150, DeviceRef::GameRom),
+
             0x8000..=0x97FF => (0x8000, DeviceRef::VRam),
             0x9800..=0x9FFF => (0x9800, DeviceRef::TileMap),
+
+            0xC000..=0xE000 => (0xC000, DeviceRef::Ram),
+
+            0xFE00..=0xFE9F => (0xFE00, DeviceRef::SpriteTable),
+            0xFEA0..=0xFEFF => (0xFEA0, DeviceRef::Unused),
             0xFF00..=0xFF7F => (0xFF00, DeviceRef::IORegisters),
-            0xFF80..=0xFFFE => (0xFF80, DeviceRef::ZeroPage),
+            0xFF80..=0xFFFE => (0xFF80, DeviceRef::HighRam),
+            0xFFFF..=0xFFFF => (0xFFFF, DeviceRef::InterruptEnable),
             _ =>  panic!("unimplemented memory location: {:X}", address)
         }
     }
@@ -142,7 +168,7 @@ impl MMU {
         0xFE00...0xFE9F => Kind::ObjectAttributeMemory,
         0xFEA0...0xFEFF => Kind::UnusableMemory,
         0xFF00...0xFF7F => Kind::HardwareIORegisters,
-        0xFF80...0xFFFE => Kind::ZeroPage,
+        0xFF80...0xFFFE => Kind::HighRam,
         0xFFFF...0xFFFF => Kind::InterruptEnableFlag,
 */
 
@@ -152,7 +178,7 @@ mod tests {
 
     #[test]
     fn test_get_set_tile_map() {
-        let mut m = MMU::new(Rom::zero(), Rom::zero());
+        let mut m = MMU::new(BootRom::zero(), GameRom::zero());
         let a = 0x9800 + 272;
         m.set(a, 0x19);
         assert_eq!(m.get(a), 0x19);

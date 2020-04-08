@@ -1,9 +1,9 @@
 pushd ../blarggs-tests/cpu_instrs/source
-./build.sh "01-special"
+# ./build.sh "01-special"
 # ./build.sh "02-interrupts"
 # ./build.sh "03-op sp,hl"
-# ./build.sh "04-op r,imm"
-# ./build.sh "05-op rp"
+# ./build.sh "04-op r,imm" # passing
+./build.sh "05-op rp"
 # ./build.sh "06-ld r,r"
 # ./build.sh "07-jr,jp,call,ret,rst"
 # ./build.sh "08-misc instrs"

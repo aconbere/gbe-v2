@@ -16,6 +16,12 @@ impl BootRom {
 
         Ok(BootRom { storage: bytes })
     }
+
+    pub fn zero() -> BootRom {
+        BootRom {
+            storage: [0; 256]
+        }
+    }
 }
 
 
@@ -40,6 +46,12 @@ impl GameRom {
         f.read(&mut bytes)?;
 
         Ok(GameRom { storage: bytes })
+    }
+
+    pub fn zero() -> GameRom {
+        GameRom {
+            storage: [0; 32767]
+        }
     }
 }
 

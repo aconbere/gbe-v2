@@ -29,7 +29,7 @@ pub enum JumpFlag {
 /* Helper Functions */
 
 fn _set(location: u8, v: u8) -> u8 {
-    v & (1 << location)
+    v | (1 << location)
 }
 
 /* Resets to 0 the specified bit in the specified register r
@@ -46,7 +46,7 @@ fn _bit(cpu: &mut CPU, location:u8, v:u8) {
 
     cpu.registers.set_flag(Flag::Z, !out);
     cpu.registers.set_flag(Flag::N, false);
-    cpu.registers.set_flag(Flag::H, false);
+    cpu.registers.set_flag(Flag::H, true);
 }
 
 fn _swap(cpu: &mut CPU, v: u8) -> u8 {
@@ -85,12 +85,8 @@ fn _sla(cpu: &mut CPU, v: u8) -> u8 {
  * 0 are copied to CY, and the content of bit 7 is unchanged.
  */
 fn _sra(cpu: &mut CPU, v: u8) -> u8 {
-    let c = bytes::check_bit(v, 7);
-
-    let out = v >> 1;
+    let out = (v >> 1) | (v & 0b1000_0000);
     
-    bytes::set_bit(out, 7, c);
-
     cpu.registers.set_flag(Flag::Z, out == 0);
     cpu.registers.set_flag(Flag::N, false);
     cpu.registers.set_flag(Flag::H, false);
@@ -245,12 +241,15 @@ fn _adc(cpu: &mut CPU, a: u8, b: u8) -> u8 {
     let c = if cpu.registers.get_flag(Flag::C) { 1 } else { 0 };
 
     let (i, overflow1) = b.overflowing_add(c);
+    let hc1 = bytes::check_half_carry8(b, c);
+
     let (v, overflow) = a.overflowing_add(i);
+    let hc = bytes::check_half_carry8(a, i);
 
     cpu.registers.set_flag(Flag::Z, v == 0);
     cpu.registers.set_flag(Flag::C, overflow1 || overflow);
     cpu.registers.set_flag(Flag::N, false);
-    cpu.registers.set_flag(Flag::H, bytes::check_half_carry8(a, b));
+    cpu.registers.set_flag(Flag::H, hc1 || hc);
 
     v
 }
@@ -269,13 +268,16 @@ fn _sub(cpu: &mut CPU, a: u8, b: u8) -> u8 {
 fn _sbc(cpu: &mut CPU, a: u8, b: u8) -> u8 {
     let c = if cpu.registers.get_flag(Flag::C) { 1 } else { 0 };
 
-    let (i, overflow1) = b.overflowing_sub(c);
-    let (v, overflow) = a.overflowing_sub(i);
+    let (i, overflow1) = a.overflowing_sub(c);
+    let hc1 = bytes::check_half_carry_sub8(a,c);
+
+    let (v, overflow) = i.overflowing_sub(b);
+    let hc = bytes::check_half_carry_sub8(i,b);
 
     cpu.registers.set_flag(Flag::Z, v == 0);
     cpu.registers.set_flag(Flag::C, overflow1 || overflow);
     cpu.registers.set_flag(Flag::N, true);
-    cpu.registers.set_flag(Flag::H, bytes::check_half_carry_sub8(a, b));
+    cpu.registers.set_flag(Flag::H, hc1 || hc);
 
     v
 }
@@ -336,57 +338,20 @@ pub fn nop(_cpu: &mut CPU) -> OpResult {
 
 /* Increment and Decrements */
 
-/* Incremenet memory pointed to by register r
+/* Decrement register r
  */
-pub fn inc_ar16(cpu: &mut CPU, r:Registers16) -> OpResult {
-    let address = cpu.registers.get16(r);
-    let i = cpu.mmu.get(address);
-    let (v, overflow) = i.overflowing_add(1);
+pub fn dec_r8(cpu: &mut CPU, r:Registers8) -> OpResult {
+    let i = cpu.registers.get8(r);
 
-    cpu.mmu.set(address, v);
+    let v = i.wrapping_sub(1);
+
+    cpu.registers.set8(r, v);
 
     cpu.registers.set_flag(Flag::Z, v == 0);
-    cpu.registers.set_flag(Flag::C, overflow);
-    cpu.registers.set_flag(Flag::N, false);
-    cpu.registers.set_flag(Flag::H, bytes::check_half_carry8(i, 1));
-
-
-    cycles(12, format!("INC AR16 {:?}", r))
-}
-
-/* Decrement memory pointed to by register r
- */
-pub fn dec_ar16(cpu: &mut CPU, r:Registers16) -> OpResult {
-    let address = cpu.registers.get16(r);
-    let i = cpu.mmu.get(address);
-    let (v, overflow) = i.overflowing_sub(1);
-
-    cpu.mmu.set(address, v);
-
-    cpu.registers.set_flag(Flag::Z, v == 0);
-    cpu.registers.set_flag(Flag::C, overflow);
-    cpu.registers.set_flag(Flag::N, false);
+    cpu.registers.set_flag(Flag::N, true);
     cpu.registers.set_flag(Flag::H, bytes::check_half_carry_sub8(i, 1));
 
-
-    cycles(12, format!("DEC AR16 {:?}", r))
-}
-
-/* Incremenet register r
- */
-pub fn inc_r16(cpu: &mut CPU, r: Registers16) -> OpResult {
-    let i = cpu.registers.get16(r);
-    let (v, overflow) = i.overflowing_add(1);
-
-    cpu.registers.set16(r, v);
-
-    cpu.registers.set_flag(Flag::Z, v == 0);
-    cpu.registers.set_flag(Flag::C, overflow);
-    cpu.registers.set_flag(Flag::N, false);
-    cpu.registers.set_flag(Flag::H, bytes::check_half_carry16(i, 1));
-
-
-    cycles(8, format!("INC R16 {:?}", r))
+    cycles(4, format!("DEC R8 {:?}", r))
 }
 
 /* Decrement register r
@@ -406,38 +371,76 @@ pub fn dec_r16(cpu: &mut CPU, r: Registers16) -> OpResult {
     cycles(8, format!("DEC R16 {:?}", r))
 }
 
+/* Decrement memory pointed to by register r
+ */
+pub fn dec_ar16(cpu: &mut CPU, r:Registers16) -> OpResult {
+    let address = cpu.registers.get16(r);
+    let i = cpu.mmu.get(address);
+
+    let v = i.wrapping_sub(1);
+
+    cpu.mmu.set(address, v);
+
+    cpu.registers.set_flag(Flag::Z, v == 0);
+    cpu.registers.set_flag(Flag::N, true);
+    cpu.registers.set_flag(Flag::H, bytes::check_half_carry_sub8(i, 1));
+
+
+    cycles(12, format!("DEC AR16 {:?}", r))
+}
+
 /* Increment register r
  */
 pub fn inc_r8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let i = cpu.registers.get8(r);
-    let (v, overflow) = i.overflowing_add(1);
+    let v = i.wrapping_add(1);
 
     cpu.registers.set8(r, v);
 
     cpu.registers.set_flag(Flag::Z, v == 0);
-    cpu.registers.set_flag(Flag::C, overflow);
     cpu.registers.set_flag(Flag::N, false);
     cpu.registers.set_flag(Flag::H, bytes::check_half_carry8(i, 1));
 
     cycles(4, format!("INC R8 {:?}", r))
 }
 
-
-/* Decrement register r
+/* Incremenet register r
  */
-pub fn dec_r8(cpu: &mut CPU, r:Registers8) -> OpResult {
-    let i = cpu.registers.get8(r);
-    let (v, overflow) = i.overflowing_sub(1);
+pub fn inc_r16(cpu: &mut CPU, r: Registers16) -> OpResult {
+    let i = cpu.registers.get16(r);
+    let (v, overflow) = i.overflowing_add(1);
 
-    cpu.registers.set8(r, v);
+    cpu.registers.set16(r, v);
 
     cpu.registers.set_flag(Flag::Z, v == 0);
     cpu.registers.set_flag(Flag::C, overflow);
-    cpu.registers.set_flag(Flag::N, true);
-    cpu.registers.set_flag(Flag::H, bytes::check_half_carry_sub8(i, 1));
+    cpu.registers.set_flag(Flag::N, false);
+    cpu.registers.set_flag(Flag::H, bytes::check_half_carry16(i, 1));
 
-    cycles(4, format!("DEC R8 {:?}", r))
+
+    cycles(8, format!("INC R16 {:?}", r))
 }
+
+
+
+/* Incremenet memory pointed to by register r
+ */
+pub fn inc_ar16(cpu: &mut CPU, r:Registers16) -> OpResult {
+    let address = cpu.registers.get16(r);
+    let i = cpu.mmu.get(address);
+    let (v, overflow) = i.overflowing_add(1);
+
+    cpu.mmu.set(address, v);
+
+    cpu.registers.set_flag(Flag::Z, v == 0);
+    cpu.registers.set_flag(Flag::C, overflow);
+    cpu.registers.set_flag(Flag::N, false);
+    cpu.registers.set_flag(Flag::H, bytes::check_half_carry8(i, 1));
+
+
+    cycles(12, format!("INC AR16 {:?}", r))
+}
+
 
 /* Loads */
 
@@ -615,6 +618,7 @@ pub fn rla(cpu: &mut CPU) -> OpResult {
     let value = cpu.registers.get8(Registers8::A);
     let out = _rl(cpu, value);
     cpu.registers.set8(Registers8::A, out);
+    cpu.registers.set_flag(Flag::Z, false);
     cycles(4, "RLA".to_string())
 }
 
@@ -649,6 +653,7 @@ pub fn rrca(cpu: &mut CPU) -> OpResult {
     let value = cpu.registers.get8(Registers8::A);
     let out = _rrc(cpu, value);
     cpu.registers.set8(Registers8::A, out);
+    cpu.registers.set_flag(Flag::Z, false);
     cycles(4, "RRCA".to_string())
 }
 
@@ -683,6 +688,7 @@ pub fn rra(cpu: &mut CPU) -> OpResult {
     let value = cpu.registers.get8(Registers8::A);
     let out = _rr(cpu, value);
     cpu.registers.set8(Registers8::A, out);
+    cpu.registers.set_flag(Flag::Z, false);
     cycles(4, "RRA".to_string())
 }
 
@@ -717,6 +723,7 @@ pub fn rlca(cpu: &mut CPU) -> OpResult {
     let value = cpu.registers.get8(Registers8::A);
     let out = _rlc(cpu, value);
     cpu.registers.set8(Registers8::A, out);
+    cpu.registers.set_flag(Flag::Z, false);
     cycles(4, "RLCA".to_string())
 }
 
@@ -997,7 +1004,7 @@ pub fn scf(cpu: &mut CPU) -> OpResult {
 
     cpu.registers.set_flag(Flag::N, false);
     cpu.registers.set_flag(Flag::H, false);
-    cpu.registers.set_flag(Flag::C, false);
+    cpu.registers.set_flag(Flag::C, true);
 
     cycles(4, "SCF".to_string())
 }
@@ -1063,6 +1070,7 @@ pub fn adc_r8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
     let v = _adc(cpu, a, b);
 
     cpu.registers.set8(r1, v);
+
     cycles(4, format!("ADC R8 R8 {:?} {:?}", r1, r2))
 }
 
@@ -1381,3 +1389,188 @@ pub fn set_ar16(cpu: &mut CPU, n:u8, r: Registers16) -> OpResult {
 pub fn illegal_opcode(opcode: &str) -> OpResult {
     panic!("attempted to call: {}", opcode);
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::rom::{BootRom, GameRom};
+    use crate::mmu::MMU;
+
+    #[test]
+    fn test_bit_r8() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+
+        _bit(&mut cpu, 7, 0x80);
+
+        assert_eq!(cpu.registers.get_flag(Flag::Z), false);
+        assert_eq!(cpu.registers.get_flag(Flag::N), false);
+        assert_eq!(cpu.registers.get_flag(Flag::H), true);
+    }
+
+    #[test]
+    fn test_set_r8() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+
+        cpu.registers.set8(Registers8::A, 0x80);
+        set_r8(&mut cpu, 3, Registers8::A);
+
+        assert_eq!(cpu.registers.get8(Registers8::A), 0x88);
+
+        assert_eq!(cpu.registers.get_flag(Flag::Z), false);
+        assert_eq!(cpu.registers.get_flag(Flag::N), false);
+        assert_eq!(cpu.registers.get_flag(Flag::H), false);
+        assert_eq!(cpu.registers.get_flag(Flag::C), false);
+    }
+
+    #[test]
+    fn test_scf() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+
+        scf(&mut cpu);
+
+        assert_eq!(cpu.registers.get_flag(Flag::Z), false);
+        assert_eq!(cpu.registers.get_flag(Flag::N), false);
+        assert_eq!(cpu.registers.get_flag(Flag::H), false);
+        assert_eq!(cpu.registers.get_flag(Flag::C), true);
+    }
+
+    #[test]
+    fn test_adc_r8_r8() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+
+        cpu.registers.set8(Registers8::A, 0xE1);
+        cpu.registers.set8(Registers8::E, 0x0F);
+        cpu.registers.set_flag(Flag::C, true);
+
+        adc_r8_r8(&mut cpu, Registers8::A, Registers8::E);
+
+        assert_eq!(cpu.registers.get8(Registers8::A), 0xF1);
+
+        assert_eq!(cpu.registers.get_flag(Flag::Z), false);
+        assert_eq!(cpu.registers.get_flag(Flag::H), true);
+        assert_eq!(cpu.registers.get_flag(Flag::C), false);
+    }
+
+    #[test]
+    fn test_adc_r8_n8() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+
+        cpu.registers.set8(Registers8::A, 0xE1);
+        cpu.registers.set_flag(Flag::C, true);
+        cpu.push_pc(0xFF80, 0x3B);
+
+        adc_r8_n8(&mut cpu, Registers8::A);
+
+        assert_eq!(cpu.registers.get8(Registers8::A), 0x1D);
+
+        assert_eq!(cpu.registers.get_flag(Flag::Z), false);
+        assert_eq!(cpu.registers.get_flag(Flag::H), false);
+        assert_eq!(cpu.registers.get_flag(Flag::C), true);
+    }
+
+    #[test]
+    fn test_sdc_r8_r8() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+
+        cpu.registers.set8(Registers8::A, 0x3B);
+        cpu.registers.set8(Registers8::H, 0x2A);
+        cpu.registers.set_flag(Flag::C, true);
+
+        sbc_r8_r8(&mut cpu, Registers8::A, Registers8::H);
+
+        assert_eq!(cpu.registers.get8(Registers8::A), 0x10);
+
+        assert_eq!(cpu.registers.get_flag(Flag::Z), false);
+        assert_eq!(cpu.registers.get_flag(Flag::H), false);
+        assert_eq!(cpu.registers.get_flag(Flag::N), true);
+        assert_eq!(cpu.registers.get_flag(Flag::C), false);
+    }
+
+    #[test]
+    fn test_dec_r8() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+
+        cpu.registers.set8(Registers8::L, 0x01);
+
+        dec_r8(&mut cpu, Registers8::L);
+
+        assert_eq!(cpu.registers.get8(Registers8::L), 0x00);
+
+        assert_eq!(cpu.registers.get_flag(Flag::Z), true);
+        assert_eq!(cpu.registers.get_flag(Flag::H), false);
+        assert_eq!(cpu.registers.get_flag(Flag::N), true);
+        // interestingly blarggs says inc and dec nevery set carry
+        assert_eq!(cpu.registers.get_flag(Flag::C), false);
+    }
+
+    #[test]
+    fn test_inc_r8() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+
+        cpu.registers.set8(Registers8::L, 0x01);
+
+        inc_r8(&mut cpu, Registers8::L);
+
+        assert_eq!(cpu.registers.get8(Registers8::L), 0x02);
+
+        assert_eq!(cpu.registers.get_flag(Flag::Z), false);
+        assert_eq!(cpu.registers.get_flag(Flag::H), false);
+        assert_eq!(cpu.registers.get_flag(Flag::N), false);
+        assert_eq!(cpu.registers.get_flag(Flag::C), false);
+    }
+
+    #[test]
+    fn test_rlca() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+
+        cpu.registers.set8(Registers8::A, 0x85);
+
+        rlca(&mut cpu);
+
+        /* Note this disagrees with the gamboy manual
+         * The manual suggests this should be 0x0A but that
+         * seems impossible.
+         */
+        assert_eq!(cpu.registers.get8(Registers8::A), 0x0B);
+
+        assert_eq!(cpu.registers.get_flag(Flag::Z), false);
+        assert_eq!(cpu.registers.get_flag(Flag::H), false);
+        assert_eq!(cpu.registers.get_flag(Flag::N), false);
+        assert_eq!(cpu.registers.get_flag(Flag::C), true);
+    }
+
+    #[test]
+    fn test_sra() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+
+        cpu.registers.set8(Registers8::A, 0x8A);
+
+        sra_r8(&mut cpu, Registers8::A);
+
+        assert_eq!(cpu.registers.get8(Registers8::A), 0xC5);
+
+        assert_eq!(cpu.registers.get_flag(Flag::Z), false);
+        assert_eq!(cpu.registers.get_flag(Flag::H), false);
+        assert_eq!(cpu.registers.get_flag(Flag::N), false);
+        assert_eq!(cpu.registers.get_flag(Flag::C), false);
+    }
+
+    #[test]
+    fn test_dec_ar16() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+
+        cpu.mmu.set(0xFF80, 0x0000);
+        cpu.registers.set16(Registers16::HL, 0xFF80);
+
+        dec_ar16(&mut cpu, Registers16::HL);
+
+        assert_eq!(cpu.mmu.get(0xFF80), 0xFF);
+
+        assert_eq!(cpu.registers.get_flag(Flag::Z), false);
+        assert_eq!(cpu.registers.get_flag(Flag::H), true);
+        assert_eq!(cpu.registers.get_flag(Flag::N), true);
+        // assert_eq!(cpu.registers.get_flag(Flag::C), false);
+    }
+}
+
