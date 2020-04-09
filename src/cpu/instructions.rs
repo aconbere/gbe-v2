@@ -358,6 +358,7 @@ pub fn dec_r8(cpu: &mut CPU, r:Registers8) -> OpResult {
  */
 pub fn dec_r16(cpu: &mut CPU, r: Registers16) -> OpResult {
     let i = cpu.registers.get16(r);
+
     let (v, overflow) = i.overflowing_sub(1);
 
     cpu.registers.set16(r, v);
@@ -1098,6 +1099,7 @@ pub fn adc_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
 pub fn add_r16_r16(cpu: &mut CPU, r1: Registers16, r2: Registers16) -> OpResult {
     let a = cpu.registers.get16(r1);
     let b = cpu.registers.get16(r2);
+
     let (v, overflow) = a.overflowing_add(b);
 
     cpu.registers.set16(r1, v);
@@ -1560,8 +1562,9 @@ mod tests {
     fn test_dec_ar16() {
         let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
 
-        cpu.mmu.set(0xFF80, 0x0000);
+        cpu.mmu.set(0xFF80, 0x00);
         cpu.registers.set16(Registers16::HL, 0xFF80);
+        cpu.registers.set_flag(Flag::C, true);
 
         dec_ar16(&mut cpu, Registers16::HL);
 
@@ -1570,7 +1573,29 @@ mod tests {
         assert_eq!(cpu.registers.get_flag(Flag::Z), false);
         assert_eq!(cpu.registers.get_flag(Flag::H), true);
         assert_eq!(cpu.registers.get_flag(Flag::N), true);
-        // assert_eq!(cpu.registers.get_flag(Flag::C), false);
+
+        /* assert that C isn't affected */
+        assert_eq!(cpu.registers.get_flag(Flag::C), true);
+    }
+
+    #[test]
+    fn test_inc_ar16() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+
+        cpu.mmu.set(0xFF80, 0x50);
+        cpu.registers.set16(Registers16::HL, 0xFF80);
+        cpu.registers.set_flag(Flag::C, true);
+
+        inc_ar16(&mut cpu, Registers16::HL);
+
+        assert_eq!(cpu.mmu.get(0xFF80), 0x51);
+
+        assert_eq!(cpu.registers.get_flag(Flag::Z), false);
+        assert_eq!(cpu.registers.get_flag(Flag::H), false);
+        assert_eq!(cpu.registers.get_flag(Flag::N), false);
+
+        /* assert that C isn't affected */
+        assert_eq!(cpu.registers.get_flag(Flag::C), false);
     }
 }
 

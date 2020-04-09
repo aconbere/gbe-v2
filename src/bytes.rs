@@ -57,7 +57,7 @@ pub fn check_half_carry_sub8(a:u8, b:u8) -> bool {
 }
 
 pub fn check_half_carry_sub16(a:u16, b:u16) -> bool {
-    (a & 0x0FFFF) < (b & 0x0FFFF)
+    (a & 0x0FFF) < (b & 0x0FFF)
 }
 
 #[cfg(test)]

@@ -9,3 +9,9 @@ Documents:
 * Memory Map: http://gameboy.mongenel.com/dmg/asmmemmap.html
 * https://gekkio.fi/files/gb-docs/gbctr.pdf
 * https://realboyemulator.wordpress.com/2013/01/03/a-look-at-the-game-boy-bootstrap-let-the-fun-begin/
+
+failing tests from "05-op rp"
+0B 1B 2B
+03 13 23
+09 19 29
+
