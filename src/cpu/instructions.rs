@@ -431,7 +431,7 @@ pub fn inc_ar16(cpu: &mut CPU, r:Registers16) -> OpResult {
 
 /* Loads */
 
-/* Loads a 8 bit value from r1 into the memory addressed by r2
+/* Loads a 8 bit value from r2 into the memory addressed by r1
  */
 pub fn ld_ar16_r8(cpu: &mut CPU, r1: Registers16, r2: Registers8) -> OpResult {
     let address = cpu.registers.get16(r1);
@@ -472,8 +472,12 @@ pub fn ld_r8_an16(cpu: &mut CPU, r: Registers8) -> OpResult {
  * and simultaneously increments r2
  */
 pub fn ldi_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
-    ld_r8_ar16(cpu, r1, r2);
-    cpu.registers.inc16(r2);
+    let address = cpu.registers.get16(r2);
+    let value = cpu.mmu.get(address);
+
+    cpu.registers.set8(r1, value);
+    cpu.registers.set16(r2, address.wrapping_add(1));
+
     cycles(8, format!("LDI R8 AR16 {:?} {:?}", r1, r2))
 }
 
@@ -481,8 +485,11 @@ pub fn ldi_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
  * and simultaneously decements r2
  */
 pub fn ldd_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
-    ld_r8_ar16(cpu, r1, r2);
-    cpu.registers.dec16(r2);
+    let address = cpu.registers.get16(r2);
+    let value = cpu.mmu.get(address);
+
+    cpu.registers.set8(r1, value);
+    cpu.registers.set16(r2, address.wrapping_sub(1));
     cycles(8, format!("LDD R7 AR16 {:?} {:?}", r1, r2))
 }
 
@@ -490,8 +497,12 @@ pub fn ldd_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
  * and simultaneously increments r1
  */
 pub fn ldi_ar16_r8(cpu: &mut CPU, r1: Registers16, r2: Registers8) -> OpResult {
-    ld_ar16_r8(cpu, r1, r2);
-    cpu.registers.inc16(Registers16::HL);
+    let address = cpu.registers.get16(r1);
+    let value = cpu.registers.get8(r2);
+
+    cpu.mmu.set(address, value);
+    cpu.registers.set16(r1, address.wrapping_add(1));
+
     cycles(8, format!("LDI AR16 R8 {:?} {:?}", r1, r2))
 }
 
@@ -499,8 +510,11 @@ pub fn ldi_ar16_r8(cpu: &mut CPU, r1: Registers16, r2: Registers8) -> OpResult {
  * and simultaneously decrements r1
  */
 pub fn ldd_ar16_r8(cpu: &mut CPU, r1: Registers16, r2: Registers8) -> OpResult {
-    ld_ar16_r8(cpu, r1, r2);
-    cpu.registers.dec16(Registers16::HL);
+    let address = cpu.registers.get16(r1);
+    let value = cpu.registers.get8(r2);
+
+    cpu.mmu.set(address, value);
+    cpu.registers.set16(r1, address.wrapping_sub(1));
     cycles(8, format!("LDD AR16 R8 {:?} {:?}", r1, r2))
 }
 
@@ -565,6 +579,8 @@ pub fn ld_r16_spn8(cpu: &mut CPU, r: Registers16) -> OpResult {
     cycles(12, format!("LD R16 SPN8 {:?} {:X}", r, b))
 }
 
+/* Loads an 8 bit value from r value into the memory at FF00 + an
+ */
 pub fn ldh_an8_r8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let v = cpu.registers.get8(r);
     let an = cpu.fetch_arg_8() as u16;
