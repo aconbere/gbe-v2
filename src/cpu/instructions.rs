@@ -297,8 +297,8 @@ fn _pop(cpu: &mut CPU, r: Registers16) {
     cpu.registers.set16(Registers16::SP, sp + 2);
 }
 
-fn _call(cpu: &mut CPU, n: u16) {
-    push_r16(cpu, Registers16::PC);
+pub fn _call(cpu: &mut CPU, n: u16) {
+    _push(cpu, Registers16::PC);
     _jump(cpu, n);
 }
 
@@ -309,7 +309,6 @@ fn _push(cpu: &mut CPU, r: Registers16)  {
     let (ms, ls) = bytes::split_ms_ls(v);
 
     sp = sp.wrapping_sub(1);
-
     cpu.mmu.set(sp, ls);
 
     sp = sp.wrapping_sub(1);
@@ -359,15 +358,9 @@ pub fn dec_r8(cpu: &mut CPU, r:Registers8) -> OpResult {
 pub fn dec_r16(cpu: &mut CPU, r: Registers16) -> OpResult {
     let i = cpu.registers.get16(r);
 
-    let (v, overflow) = i.overflowing_sub(1);
+    let v = i.wrapping_sub(1);
 
     cpu.registers.set16(r, v);
-
-    cpu.registers.set_flag(Flag::Z, v == 0);
-    cpu.registers.set_flag(Flag::C, overflow);
-    cpu.registers.set_flag(Flag::N, true);
-    cpu.registers.set_flag(Flag::H, bytes::check_half_carry_sub16(i, 1));
-
 
     cycles(8, format!("DEC R16 {:?}", r))
 }
@@ -409,15 +402,9 @@ pub fn inc_r8(cpu: &mut CPU, r: Registers8) -> OpResult {
  */
 pub fn inc_r16(cpu: &mut CPU, r: Registers16) -> OpResult {
     let i = cpu.registers.get16(r);
-    let (v, overflow) = i.overflowing_add(1);
+    let v = i.wrapping_add(1);
 
     cpu.registers.set16(r, v);
-
-    cpu.registers.set_flag(Flag::Z, v == 0);
-    cpu.registers.set_flag(Flag::C, overflow);
-    cpu.registers.set_flag(Flag::N, false);
-    cpu.registers.set_flag(Flag::H, bytes::check_half_carry16(i, 1));
-
 
     cycles(8, format!("INC R16 {:?}", r))
 }
@@ -429,12 +416,11 @@ pub fn inc_r16(cpu: &mut CPU, r: Registers16) -> OpResult {
 pub fn inc_ar16(cpu: &mut CPU, r:Registers16) -> OpResult {
     let address = cpu.registers.get16(r);
     let i = cpu.mmu.get(address);
-    let (v, overflow) = i.overflowing_add(1);
+    let v = i.wrapping_add(1);
 
     cpu.mmu.set(address, v);
 
     cpu.registers.set_flag(Flag::Z, v == 0);
-    cpu.registers.set_flag(Flag::C, overflow);
     cpu.registers.set_flag(Flag::N, false);
     cpu.registers.set_flag(Flag::H, bytes::check_half_carry8(i, 1));
 
@@ -575,6 +561,7 @@ pub fn ld_r16_spn8(cpu: &mut CPU, r: Registers16) -> OpResult {
     let v = _add_u16_i8(cpu, a, b);
 
     cpu.registers.set16(r, v);
+
     cycles(12, format!("LD R16 SPN8 {:?} {:X}", r, b))
 }
 
@@ -888,12 +875,12 @@ pub fn rst_f(cpu: &mut CPU, f: RstFlag) -> OpResult {
 }
 
 pub fn di(cpu: &mut CPU) -> OpResult {
-    cpu.disable_interrupts();
+    cpu.registers.interrupts_enabled = false;
     cycles(4, "DI".to_string())
 }
 
 pub fn ei(cpu: &mut CPU) -> OpResult {
-    cpu.enable_interrupts();
+    cpu.registers.interrupts_enabled = true;
     cycles(4, "EI".to_string())
 }
 
@@ -911,7 +898,7 @@ pub fn ret(cpu: &mut CPU) -> OpResult {
 
 pub fn reti(cpu: &mut CPU) -> OpResult {
     _ret(cpu);
-    cpu.enable_interrupts();
+    cpu.registers.interrupts_enabled = true;
     cycles(8, "RETI".to_string())
 }
 
@@ -996,9 +983,51 @@ pub fn cpl(cpu: &mut CPU) -> OpResult {
     cycles(4, "CPL".to_string())
 }
 
-/* TODO: Implement */
-pub fn daa(_cpu: &mut CPU) -> OpResult {
-    panic!("DAA not implemented");
+/* When performing addition and subtraction, binary coded decimal
+ * representation is used to set the contents of register A to a binary coded
+ * decimal number (BCD).
+ *
+ * BCD represents the top and bottom nibbles of an 8bit number as individual
+ * decimal numerals.
+ *
+ * For example 49 would be represented as
+ *
+ * 0100_1001
+ *
+ * the DAA function thus takes the A register and maps its value into BCD
+ *
+*/ 
+pub fn daa(cpu: &mut CPU) -> OpResult {
+    let mut v = cpu.registers.get8(Registers8::A);
+
+    let n = cpu.registers.get_flag(Flag::N);
+    let h = cpu.registers.get_flag(Flag::H);
+    let c = cpu.registers.get_flag(Flag::C);
+
+    if n {
+        if c {
+            v = v.wrapping_sub(0x60);
+        }
+        if h {
+            v = v.wrapping_sub(0x06);
+        }
+    } else {
+        if c || v > 0x99 {
+            v = v.wrapping_add(0x60);
+            cpu.registers.set_flag(Flag::C, true);
+        }
+
+        if h || (v & 0x0F) > 9 {
+            v = v.wrapping_add(0x06);
+        }
+    }
+
+    cpu.registers.set8(Registers8::A, v);
+
+    cpu.registers.set_flag(Flag::Z, v == 0);
+    cpu.registers.set_flag(Flag::H, false);
+
+    cycles(4, "DAA".to_string())
 }
 
 pub fn scf(cpu: &mut CPU) -> OpResult {
@@ -1104,7 +1133,6 @@ pub fn add_r16_r16(cpu: &mut CPU, r1: Registers16, r2: Registers16) -> OpResult 
 
     cpu.registers.set16(r1, v);
 
-    cpu.registers.set_flag(Flag::Z, v == 0);
     cpu.registers.set_flag(Flag::C, overflow);
     cpu.registers.set_flag(Flag::N, false);
     cpu.registers.set_flag(Flag::H, bytes::check_half_carry16(a, b));
@@ -1595,6 +1623,100 @@ mod tests {
         assert_eq!(cpu.registers.get_flag(Flag::N), false);
 
         /* assert that C isn't affected */
+        assert_eq!(cpu.registers.get_flag(Flag::C), true);
+    }
+
+    #[test]
+    fn test_daa() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+
+        cpu.registers.set8(Registers8::A, 0x45);
+        cpu.registers.set8(Registers8::B, 0x38);
+        cpu.registers.set_flag(Flag::N, true);
+
+        add_r8_r8(&mut cpu, Registers8::A, Registers8::B);
+
+        assert_eq!(cpu.registers.get8(Registers8::A), 0x7D);
+        assert_eq!(cpu.registers.get_flag(Flag::N), false);
+
+        daa(&mut cpu);
+
+        assert_eq!(cpu.registers.get8(Registers8::A), 0x83);
+        assert_eq!(cpu.registers.get_flag(Flag::C), false);
+
+        sub_r8_r8(&mut cpu, Registers8::A, Registers8::B);
+
+        assert_eq!(cpu.registers.get8(Registers8::A), 0x4B);
+        assert_eq!(cpu.registers.get_flag(Flag::N), true);
+
+        daa(&mut cpu);
+
+        assert_eq!(cpu.registers.get8(Registers8::A), 0x45);
+    }
+
+    #[test]
+    fn test_ld_r16_spn8() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+
+        cpu.registers.set16(Registers16::SP, 0xFFF8);
+        cpu.push_pc(0xFF80, 0x02);
+
+        ld_r16_spn8(&mut cpu, Registers16::HL);
+
+        assert_eq!(cpu.registers.get16(Registers16::HL), 0xFFFA);
+        assert_eq!(cpu.registers.get_flag(Flag::Z), false);
+        assert_eq!(cpu.registers.get_flag(Flag::N), false);
+        assert_eq!(cpu.registers.get_flag(Flag::H), false);
+        assert_eq!(cpu.registers.get_flag(Flag::C), false);
+
+    }
+
+    #[test]
+    fn test_ld_r16_spn8_sub() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+
+        cpu.registers.set16(Registers16::SP, 0xDFFD);
+        cpu.push_pc(0xFF80, 0xFE);
+
+        ld_r16_spn8(&mut cpu, Registers16::HL);
+
+        assert_eq!(cpu.registers.get16(Registers16::HL), 0xDFFB);
+        assert_eq!(cpu.registers.get_flag(Flag::Z), false);
+        assert_eq!(cpu.registers.get_flag(Flag::N), false);
+        assert_eq!(cpu.registers.get_flag(Flag::H), true);
+        assert_eq!(cpu.registers.get_flag(Flag::C), false);
+
+    }
+
+    #[test]
+    fn test_add_r16_n8() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+
+        cpu.registers.set16(Registers16::SP, 0xDFFD);
+        cpu.push_pc(0xFF80, 0x01);
+
+        add_r16_n8(&mut cpu, Registers16::SP);
+
+        assert_eq!(cpu.registers.get16(Registers16::SP), 0xDFFE);
+        assert_eq!(cpu.registers.get_flag(Flag::Z), false);
+        assert_eq!(cpu.registers.get_flag(Flag::N), false);
+        assert_eq!(cpu.registers.get_flag(Flag::H), false);
+        assert_eq!(cpu.registers.get_flag(Flag::C), false);
+    }
+
+    #[test]
+    fn test_add_r16_n8_sub() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+
+        cpu.registers.set16(Registers16::SP, 0xDFFD);
+        cpu.push_pc(0xFF80, 0xFF);
+
+        add_r16_n8(&mut cpu, Registers16::SP);
+
+        assert_eq!(cpu.registers.get16(Registers16::SP), 0xDFFC);
+        assert_eq!(cpu.registers.get_flag(Flag::Z), false);
+        assert_eq!(cpu.registers.get_flag(Flag::N), false);
+        assert_eq!(cpu.registers.get_flag(Flag::H), true);
         assert_eq!(cpu.registers.get_flag(Flag::C), false);
     }
 }

@@ -6,7 +6,7 @@ use crate::framebuffer;
 
 mod instructions;
 
-use instructions::{JumpFlag, RstFlag};
+use instructions::{JumpFlag, RstFlag, _call};
 
 pub struct CPU {
     pub mmu: MMU,
@@ -15,7 +15,6 @@ pub struct CPU {
     pub buffer: framebuffer::Buffer,
     pub stopped: bool,
     pub halted: bool,
-    interupts_enabled: bool,
 }
 
 impl CPU {
@@ -26,7 +25,6 @@ impl CPU {
             buffer: framebuffer::new(),
             stopped: false,
             halted: false,
-            interupts_enabled: false,
         }
     }
 
@@ -50,11 +48,12 @@ impl CPU {
     pub fn next_frame(&mut self) {
         loop {
             match self.next_instruction() {
-                Some((Mode::VBlank, Mode::OAM)) => break,
+                Some((Mode::VBlank, Mode::OAM)) => {
+                    self.mmu.interrupt_flag.vblank = true;
+                    break;
+                },
                 Some((Mode::VRAM, Mode::HBlank)) => self.render_line(),
-                Some((Mode::HBlank, Mode::VBlank)) => {
-                    self.mmu.gpu.update_buffer();
-                }
+                Some((Mode::HBlank, Mode::VBlank)) => self.mmu.gpu.update_buffer(),
                 _ => {},
             }
 
@@ -83,22 +82,50 @@ impl CPU {
         self.mmu.set(address, value);
     }
 
+    fn handle_interrupts(&mut self) {
+        let ire = self.mmu.interrupt_enable;
+        let mut irf = self.mmu.interrupt_flag;
+
+        if irf.vblank && ire.vblank {
+            println!("vblank");
+            irf.vblank = false;
+            self.registers.interrupts_enabled = false;
+            _call(self, 0x40);
+        } else if irf.lcd_stat && ire.lcd_stat {
+            println!("lcd_stat");
+            irf.lcd_stat = false;
+            self.registers.interrupts_enabled = false;
+            _call(self, 0x48);
+        } else if irf.timer && ire.timer {
+            println!("timer");
+            irf.timer = false;
+            self.registers.interrupts_enabled = false;
+            _call(self, 0x50);
+        } else if irf.serial && ire.serial {
+            println!("serial");
+            irf.serial = false;
+            self.registers.interrupts_enabled = false;
+            _call(self, 0x58);
+        } else if irf.joypad && ire.joypad {
+            println!("joypad");
+            irf.joypad = false;
+            self.registers.interrupts_enabled = false;
+            _call(self, 0x60);
+        }
+    }
+
     pub fn next_instruction(&mut self) -> Option<(Mode, Mode)> {
+        if self.registers.interrupts_enabled {
+            self.handle_interrupts();
+        }
+
         let opcode = self.fetch_opcode();
         let result = self.execute(opcode);
 
-        // println!("DEBUG: {:?}", result.name);
-        // println!("DEBUG: {:?}", self.registers);
+        println!("DEBUG: {:?}", result.name);
+        println!("DEBUG: {:?}", self.registers);
 
         self.mmu.lcd.advance_cycles(result.cycles)
-    }
-
-    pub fn enable_interrupts(&mut self) {
-        self.interupts_enabled = true;
-    }
-
-    pub fn disable_interrupts(&mut self) {
-        self.interupts_enabled = false;
     }
 
     pub fn stop(&mut self) {
@@ -402,7 +429,7 @@ impl CPU {
             0x00F6 => instructions::or_r8_n8(self, Registers8::A),
             0x00F7 => instructions::rst_f(self, RstFlag::H30),
 
-            0x00F8 => instructions::ld_r16_spn8(self, Registers16::SP),
+            0x00F8 => instructions::ld_r16_spn8(self, Registers16::HL),
             0x00F9 => instructions::ld_r16_r16(self, Registers16::SP, Registers16::HL),
             0x00FA => instructions::ld_r8_an16(self, Registers8::A),
             0x00FB => instructions::ei(self),

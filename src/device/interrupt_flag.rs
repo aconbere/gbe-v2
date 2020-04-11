@@ -2,11 +2,11 @@ use crate::bytes;
 
 #[derive(Debug, Clone, Copy)]
 pub struct InterruptEnable {
-    pub vblank: bool,
-    pub lcd_stat: bool,
-    pub timer: bool,
-    pub serial: bool,
-    pub joypad: bool,
+    vblank: bool,
+    lcd_stat: bool,
+    timer: bool,
+    serial: bool,
+    joypad: bool,
 }
 
 impl InterruptEnable {
@@ -46,3 +46,4 @@ impl std::convert::From<InterruptEnable> for u8 {
         u
     }
 }
+

@@ -70,7 +70,7 @@ pub struct Registers {
     l: u8,
     sp: u16,
     pc: u16,
-    interrupts_enabled: bool,
+    pub interrupts_enabled: bool,
 }
 
 impl Registers {
