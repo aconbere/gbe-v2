@@ -10,7 +10,7 @@ use crate::rom::BootRom;
 enum DeviceRef {
     BootRom,
     Cartridge,
-    ExternalRam,
+    CartridgeRam,
 
     VRam,
     Ram,
@@ -59,6 +59,7 @@ impl MMU {
         match self.get_device(address) {
             (start, DeviceRef::BootRom) => self.boot_rom.get(address - start),
             (_, DeviceRef::Cartridge) => self.cartridge.get(address),
+            (start, DeviceRef::CartridgeRam) => self.cartridge.ram.get(address - start),
             (_, DeviceRef::VRam) => self.gpu.get(address),
             (start, DeviceRef::Ram) => self.ram.get(address - start),
             (_, DeviceRef::Unused) => 0x00,
@@ -76,15 +77,16 @@ impl MMU {
     }
 
     pub fn get16(&self, address: u16) -> u16 {
-        let ms = self.get(address);
-        let ls = self.get(address+1);
+        let ls = self.get(address);
+        let ms = self.get(address+1);
         bytes::combine_ms_ls(ms, ls)
     }
 
     pub fn set(&mut self, address: u16, value: u8) {
         match self.get_device(address) {
             (_, DeviceRef::BootRom) => panic!("BootRom is read only: {:X}", address),
-            (_, DeviceRef::Cartridge) => panic!("Cartridge is read only: {:X}", address),
+            (_, DeviceRef::Cartridge) => self.cartridge.set(address, value),
+            (start, DeviceRef::CartridgeRam) => self.cartridge.ram.set(address - start, value),
             (_, DeviceRef::VRam) => self.gpu.set(address, value),
             (start, DeviceRef::Ram) => self.ram.set(address - start, value),
             (_, DeviceRef::Unused) => {},
@@ -127,7 +129,7 @@ impl MMU {
             },
             0x0100..=0x7FFF => (0x0150, DeviceRef::Cartridge),
             0x8000..=0x9FFF => (0x8000, DeviceRef::VRam),
-            0xA000..=0xBFFF => (0xC000, DeviceRef::ExternalRam),
+            0xA000..=0xBFFF => (0xA000, DeviceRef::CartridgeRam),
             0xC000..=0xE000 => (0xC000, DeviceRef::Ram),
             0xFE00..=0xFE9F => (0xFE00, DeviceRef::SpriteTable),
             0xFEA0..=0xFEFF => (0xFEA0, DeviceRef::Unused),

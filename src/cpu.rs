@@ -120,6 +120,9 @@ impl CPU {
         }
 
         let opcode = self.fetch_opcode();
+        if opcode == 0x00FC {
+            println!("DEBUG: {:?}", self.registers);
+        }
         let result = self.execute(opcode);
 
         // println!("DEBUG: {:?}", result.name);

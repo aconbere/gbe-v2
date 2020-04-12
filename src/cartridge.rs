@@ -1,7 +1,9 @@
 use std::io::Error;
 use std::io::Read;
 use std::io::BufReader;
+
 use crate::device::Device;
+use crate::device::ram::Ram8k;
 
 use std::path::Path;
 use std::io::ErrorKind;
@@ -12,6 +14,7 @@ use std::io::SeekFrom;
 
 pub struct Cartridge {
     storage: Vec<u8>,
+    pub ram: Ram8k,
     header: Header,
 }
 
@@ -38,6 +41,7 @@ impl Cartridge {
     pub fn new(bytes: Vec<u8>, header: Header) -> Cartridge {
         Cartridge {
             storage: bytes,
+            ram: Ram8k::new(),
             header: header
         }
     }
@@ -45,6 +49,7 @@ impl Cartridge {
     pub fn zero() -> Cartridge {
         Cartridge {
             storage: Vec::new(),
+            ram: Ram8k::new(),
             header: Header::zero(),
         }
     }
@@ -56,7 +61,25 @@ impl Device for Cartridge {
     }
 
     fn set(&mut self, address: u16, value: u8) {
-        self.storage[address as usize] = value
+        match address {
+            0x0000..=0x1FFF => {
+                if (value & 0x0F) == 0x0A {
+                    println!("Enable RAM!");
+                } else {
+                    println!("Disable RAM!");
+                }
+            },
+            0x2000..=0x3FFF => {
+                println!("RAM Bank Number");
+            }
+            0x4000..=0x5FFF => {
+                println!("ROM/RAM Select");
+            }
+            0x6000..=0x7FFF => {
+                println!("ROM/RAM Select");
+            }
+            _ => panic!("invalid ram write to cartridge: {:X} {:X}", address, value),
+        }
     }
 }
 

@@ -316,10 +316,10 @@ fn _push(cpu: &mut CPU, r: Registers16)  {
     let (ms, ls) = bytes::split_ms_ls(v);
 
     sp = sp.wrapping_sub(1);
-    cpu.mmu.set(sp, ls);
+    cpu.mmu.set(sp, ms);
 
     sp = sp.wrapping_sub(1);
-    cpu.mmu.set(sp, ms);
+    cpu.mmu.set(sp, ls);
 
     cpu.registers.set16(Registers16::SP, sp);
 }
@@ -1775,9 +1775,8 @@ mod tests {
     fn test_call() {
         let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
 
-        //cpu.push_pc(0x8000, 0x1234);
-        cpu.push_pc(0x8001, 0x12);
-        cpu.push_pc(0x8000, 0x34);
+        cpu.push_pc(0x8002, 0x12);
+        cpu.push_pc(0x8001, 0x34);
         cpu.registers.set16(Registers16::SP, 0xFFFE);
 
         call_n16(&mut cpu);
