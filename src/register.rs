@@ -14,7 +14,7 @@ pub enum Registers8 {
     L,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum Registers16 {
     AF,
     BC,
@@ -146,50 +146,15 @@ impl Registers {
         bytes::check_bit(self.f, f.get_index())
     }
 
-    pub fn inc8(&mut self, r:Registers8) {
-        let v = self.get8(r);
-        self.set8(r, v.wrapping_add(1))
-    }
-
     pub fn inc16(&mut self, r:Registers16) {
         let v = self.get16(r).wrapping_add(1);
         self.set16(r, v);
-    }
-
-    pub fn dec8(&mut self, r:Registers8) {
-        let v = self.get8(r);
-        self.set8(r, v.wrapping_sub(1))
-    }
-
-    pub fn dec16(&mut self, r:Registers16) {
-        let v = self.get16(r);
-        self.set16(r, v.wrapping_sub(1))
-    }
-
-    pub fn inc_pc(&mut self) {
-        self.inc16(Registers16::PC);
-    }
-
-    pub fn dec_hl(&mut self) {
-        self.dec16(Registers16::HL);
-    }
-
-    pub fn inc_hl(&mut self) {
-        self.inc16(Registers16::HL);
     }
 
     fn set_combined(&mut self, r1: Registers8, r2: Registers8, v: u16) {
         let (ms, ls) = bytes::split_ms_ls(v);
         self.set8(r1, ms);
         self.set8(r2, ls);
-    }
-
-    pub fn set_interrupts_enabled(&mut self, b: bool) {
-        self.interrupts_enabled = b
-    }
-
-    pub fn get_interrupts_enabled(&self) -> bool {
-        self.interrupts_enabled
     }
 }
 

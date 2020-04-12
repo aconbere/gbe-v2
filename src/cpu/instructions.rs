@@ -293,7 +293,14 @@ fn _ret(cpu: &mut CPU) {
 fn _pop(cpu: &mut CPU, r: Registers16) {
     let sp = cpu.registers.get16(Registers16::SP);
     let v = cpu.mmu.get16(sp);
-    cpu.registers.set16(r, v);
+
+    if r == Registers16::AF {
+        /* Protect writing to F invalid values */
+        cpu.registers.set16(r, v & 0xFFF0);
+    } else {
+        cpu.registers.set16(r, v);
+    }
+
     cpu.registers.set16(Registers16::SP, sp + 2);
 }
 
@@ -803,6 +810,9 @@ pub fn halt(cpu: &mut CPU) -> OpResult {
 pub fn jp_f_n16(cpu: &mut CPU, f: JumpFlag) -> OpResult {
     let n = cpu.fetch_arg_16();
 
+    /* TODO: note there is a difference in cycle count
+     * between matching and not matching branches
+     */
     match f {
         JumpFlag::NZ => {
             if !cpu.registers.get_flag(Flag::Z) {
@@ -835,7 +845,7 @@ pub fn jp_n16(cpu: &mut CPU) -> OpResult {
     cycles(12, format!("JP N16 {:X}", n))
 }
 
-pub fn jp_ar16(cpu: &mut CPU, r: Registers16) -> OpResult {
+pub fn jp_r16(cpu: &mut CPU, r: Registers16) -> OpResult {
     let n = cpu.registers.get16(r);
     _jump(cpu, n);
     cycles(4, format!("JP AR16 {:?}", r))
@@ -1440,12 +1450,13 @@ pub fn illegal_opcode(opcode: &str) -> OpResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rom::{BootRom, GameRom};
+    use crate::rom::BootRom;
+    use crate::cartridge::Cartridge;
     use crate::mmu::MMU;
 
     #[test]
     fn test_bit_r8() {
-        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
 
         _bit(&mut cpu, 7, 0x80);
 
@@ -1456,7 +1467,7 @@ mod tests {
 
     #[test]
     fn test_set_r8() {
-        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
 
         cpu.registers.set8(Registers8::A, 0x80);
         set_r8(&mut cpu, 3, Registers8::A);
@@ -1471,7 +1482,7 @@ mod tests {
 
     #[test]
     fn test_scf() {
-        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
 
         scf(&mut cpu);
 
@@ -1483,7 +1494,7 @@ mod tests {
 
     #[test]
     fn test_adc_r8_r8() {
-        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
 
         cpu.registers.set8(Registers8::A, 0xE1);
         cpu.registers.set8(Registers8::E, 0x0F);
@@ -1500,7 +1511,7 @@ mod tests {
 
     #[test]
     fn test_adc_r8_n8() {
-        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
 
         cpu.registers.set8(Registers8::A, 0xE1);
         cpu.registers.set_flag(Flag::C, true);
@@ -1517,7 +1528,7 @@ mod tests {
 
     #[test]
     fn test_sdc_r8_r8() {
-        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
 
         cpu.registers.set8(Registers8::A, 0x3B);
         cpu.registers.set8(Registers8::H, 0x2A);
@@ -1535,7 +1546,7 @@ mod tests {
 
     #[test]
     fn test_dec_r8() {
-        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
 
         cpu.registers.set8(Registers8::L, 0x01);
 
@@ -1552,7 +1563,7 @@ mod tests {
 
     #[test]
     fn test_inc_r8() {
-        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
 
         cpu.registers.set8(Registers8::L, 0x01);
 
@@ -1568,7 +1579,7 @@ mod tests {
 
     #[test]
     fn test_rlca() {
-        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
 
         cpu.registers.set8(Registers8::A, 0x85);
 
@@ -1588,7 +1599,7 @@ mod tests {
 
     #[test]
     fn test_sra() {
-        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
 
         cpu.registers.set8(Registers8::A, 0x8A);
 
@@ -1604,7 +1615,7 @@ mod tests {
 
     #[test]
     fn test_dec_ar16() {
-        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
 
         cpu.mmu.set(0xFF80, 0x00);
         cpu.registers.set16(Registers16::HL, 0xFF80);
@@ -1624,7 +1635,7 @@ mod tests {
 
     #[test]
     fn test_inc_ar16() {
-        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
 
         cpu.mmu.set(0xFF80, 0x50);
         cpu.registers.set16(Registers16::HL, 0xFF80);
@@ -1644,7 +1655,7 @@ mod tests {
 
     #[test]
     fn test_daa() {
-        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
 
         cpu.registers.set8(Registers8::A, 0x45);
         cpu.registers.set8(Registers8::B, 0x38);
@@ -1672,7 +1683,7 @@ mod tests {
 
     #[test]
     fn test_ld_r16_spn8() {
-        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
 
         cpu.registers.set16(Registers16::SP, 0xFFF8);
         cpu.push_pc(0xFF80, 0x02);
@@ -1689,7 +1700,7 @@ mod tests {
 
     #[test]
     fn test_ld_r16_spn8_sub() {
-        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
 
         cpu.registers.set16(Registers16::SP, 0xDFFD);
         cpu.push_pc(0xFF80, 0xFE);
@@ -1706,7 +1717,7 @@ mod tests {
 
     #[test]
     fn test_add_r16_n8() {
-        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
 
         cpu.registers.set16(Registers16::SP, 0xDFFD);
         cpu.push_pc(0xFF80, 0x01);
@@ -1722,7 +1733,7 @@ mod tests {
 
     #[test]
     fn test_add_r16_n8_sub() {
-        let mut cpu = CPU::new(MMU::new(BootRom::zero(), GameRom::zero()));
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
 
         cpu.registers.set16(Registers16::SP, 0xDFFD);
         cpu.push_pc(0xFF80, 0xFF);
@@ -1734,6 +1745,48 @@ mod tests {
         assert_eq!(cpu.registers.get_flag(Flag::N), false);
         assert_eq!(cpu.registers.get_flag(Flag::H), true);
         assert_eq!(cpu.registers.get_flag(Flag::C), false);
+    }
+
+    #[test]
+    fn test_jp_f_n16() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
+
+        cpu.registers.set_flag(Flag::Z, true);
+        cpu.push_pc(0xFF80, 0x10);
+
+        jp_f_n16(&mut cpu, JumpFlag::Z);
+
+        assert_eq!(cpu.registers.get16(Registers16::PC), 0x10);
+    }
+
+    #[test]
+    fn test_jp_f_n16_no_test() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
+
+        cpu.registers.set_flag(Flag::Z, true);
+        cpu.push_pc(0xFF80, 0x10);
+
+        jp_f_n16(&mut cpu, JumpFlag::NZ);
+
+        assert_eq!(cpu.registers.get16(Registers16::PC), 0xFF82);
+    }
+
+    #[test]
+    fn test_call() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
+
+        //cpu.push_pc(0x8000, 0x1234);
+        cpu.push_pc(0x8001, 0x12);
+        cpu.push_pc(0x8000, 0x34);
+        cpu.registers.set16(Registers16::SP, 0xFFFE);
+
+        call_n16(&mut cpu);
+
+        assert_eq!(cpu.registers.get16(Registers16::PC), 0x1234);
+        assert_eq!(cpu.registers.get16(Registers16::SP), 0xFFFC);
+
+        assert_eq!(cpu.mmu.get(0xFFFD), 0x80);
+        assert_eq!(cpu.mmu.get(0xFFFC), 0x03);
     }
 }
 

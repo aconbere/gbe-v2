@@ -1,9 +1,9 @@
 pushd ../blarggs-tests/cpu_instrs/source
-# ./clean.sh
+./clean.sh
 
 # ./build.sh "02-interrupts"
-./build.sh "03-op sp,hl" # Crashes after reading through the whole game rom
-# ./build.sh "07-jr,jp,call,ret,rst" # never completes
+# ./build.sh "03-op sp,hl" # Crashes after reading through the whole game rom
+./build.sh "07-jr,jp,call,ret,rst" # never completes
 # ./build.sh "08-misc instrs" # never completes
 
 

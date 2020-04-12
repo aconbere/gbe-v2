@@ -138,7 +138,7 @@ impl CPU {
 
     pub fn advance_pc(&mut self) -> u8 {
         let pc = self.registers.get16(Registers16::PC);
-        self.registers.inc_pc();
+        self.registers.inc16(Registers16::PC);
         self.mmu.get(pc)
     }
 
@@ -412,7 +412,7 @@ impl CPU {
             0x00E7 => instructions::rst_f(self, RstFlag::H20),
 
             0x00E8 => instructions::add_r16_n8(self, Registers16::SP),
-            0x00E9 => instructions::jp_ar16(self, Registers16::HL),
+            0x00E9 => instructions::jp_r16(self, Registers16::HL),
             0x00EA => instructions::ld_an16_r8(self, Registers8::A),
             0x00EB => instructions::illegal_opcode("EB"),
             0x00EC => instructions::illegal_opcode("EC"),

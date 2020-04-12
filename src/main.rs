@@ -16,6 +16,7 @@ mod tile;
 mod device;
 mod rom;
 mod helpers;
+mod cartridge;
 
 use gameboy::Gameboy;
 

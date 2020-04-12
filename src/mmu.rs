@@ -1,14 +1,16 @@
 use crate::bytes;
 use crate::gpu::GPU;
+use crate::cartridge::Cartridge;
 use crate::device::Device;
 use crate::device::ram::{Ram2k, Ram8k, HighRam};
 use crate::device::lcd::LCD;
 use crate::device::interrupt_enable::InterruptEnable;
-use crate::rom::{BootRom, GameRom};
+use crate::rom::BootRom;
 
 enum DeviceRef {
     BootRom,
     Cartridge,
+    ExternalRam,
 
     VRam,
     Ram,
@@ -22,7 +24,7 @@ enum DeviceRef {
 
 pub struct MMU {
     boot_rom: BootRom,
-    cartridge: GameRom,
+    cartridge: Cartridge,
     io: Ram2k,
     ram: Ram8k,
     high_ram: HighRam,
@@ -37,10 +39,10 @@ pub struct MMU {
 }
 
 impl MMU {
-    pub fn new(boot_rom: BootRom, game_rom: GameRom) -> MMU {
+    pub fn new(boot_rom: BootRom, cartridge: Cartridge) -> MMU {
         MMU {
             boot_rom: boot_rom,
-            cartridge: game_rom,
+            cartridge: cartridge,
             io: Ram2k::new(),
             ram: Ram8k::new(),
             high_ram: HighRam::new(),
@@ -125,6 +127,7 @@ impl MMU {
             },
             0x0100..=0x7FFF => (0x0150, DeviceRef::Cartridge),
             0x8000..=0x9FFF => (0x8000, DeviceRef::VRam),
+            0xA000..=0xBFFF => (0xC000, DeviceRef::ExternalRam),
             0xC000..=0xE000 => (0xC000, DeviceRef::Ram),
             0xFE00..=0xFE9F => (0xFE00, DeviceRef::SpriteTable),
             0xFEA0..=0xFEFF => (0xFEA0, DeviceRef::Unused),
@@ -170,7 +173,7 @@ mod tests {
 
     #[test]
     fn test_get_set_tile_map() {
-        let mut m = MMU::new(BootRom::zero(), GameRom::zero());
+        let mut m = MMU::new(BootRom::zero(), Cartridge::zero());
         let a = 0x9800 + 272;
         m.set(a, 0x19);
         assert_eq!(m.get(a), 0x19);

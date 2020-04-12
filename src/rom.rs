@@ -35,33 +35,3 @@ impl Device for BootRom {
     }
 }
 
-pub struct GameRom {
-    storage: [u8; 32767]
-}
-
-impl GameRom {
-    pub fn read(p: &str) -> Result<GameRom, Error> {
-        let mut bytes = [0; 32767];
-        let mut f = open_file(p)?;
-        f.read(&mut bytes)?;
-
-        Ok(GameRom { storage: bytes })
-    }
-
-    pub fn zero() -> GameRom {
-        GameRom {
-            storage: [0; 32767]
-        }
-    }
-}
-
-
-impl Device for GameRom {
-    fn get(&self, address: u16) -> u8 {
-        self.storage[address as usize]
-    }
-
-    fn set(&mut self, address: u16, value: u8) {
-        self.storage[address as usize] = value;
-    }
-}
