@@ -1,4 +1,4 @@
-use crate::register::{Registers16, Registers8, Flag};
+use crate::register::{Registers16, Registers8, Flag, IME};
 
 use crate::bytes;
 use crate::cpu::CPU;
@@ -8,16 +8,16 @@ pub enum RstFlag {
     H00, H08, H10, H18, H20, H28, H30, H38
 }
 
-fn rst_locations(f: RstFlag) -> u8 {
+fn rst_locations(f: RstFlag) -> u16 {
     match f {
-        RstFlag::H00 => 0x00,
-        RstFlag::H08 => 0x08,
-        RstFlag::H10 => 0x10,
-        RstFlag::H18 => 0x18,
-        RstFlag::H20 => 0x20,
-        RstFlag::H28 => 0x28,
-        RstFlag::H30 => 0x30,
-        RstFlag::H38 => 0x38,
+        RstFlag::H00 => 0x0000,
+        RstFlag::H08 => 0x0008,
+        RstFlag::H10 => 0x0010,
+        RstFlag::H18 => 0x0018,
+        RstFlag::H20 => 0x0020,
+        RstFlag::H28 => 0x0028,
+        RstFlag::H30 => 0x0030,
+        RstFlag::H38 => 0x0038,
     }
 }
 
@@ -895,18 +895,18 @@ pub fn push_r16(cpu: &mut CPU, r: Registers16) -> OpResult {
 pub fn rst_f(cpu: &mut CPU, f: RstFlag) -> OpResult {
     let location = rst_locations(f);
     _push(cpu, Registers16::PC);
-    _jump(cpu, location as u16);
+    _jump(cpu, location);
     cycles(32, format!("RST F {:?}", f))
 
 }
 
 pub fn di(cpu: &mut CPU) -> OpResult {
-    cpu.registers.interrupts_enabled = false;
+    cpu.registers.ime = IME::Disabled;
     cycles(4, "DI".to_string())
 }
 
 pub fn ei(cpu: &mut CPU) -> OpResult {
-    cpu.registers.interrupts_enabled = true;
+    cpu.registers.ime = IME::Queued;
     cycles(4, "EI".to_string())
 }
 
@@ -924,7 +924,7 @@ pub fn ret(cpu: &mut CPU) -> OpResult {
 
 pub fn reti(cpu: &mut CPU) -> OpResult {
     _ret(cpu);
-    cpu.registers.interrupts_enabled = true;
+    cpu.registers.ime = IME::Queued;
     cycles(8, "RETI".to_string())
 }
 
@@ -1236,7 +1236,7 @@ pub fn and_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let v = _and(cpu, a, b);
 
     cpu.registers.set8(r, v);
-    cycles(8, format!("ADD R8 N8 {:?}", r))
+    cycles(8, format!("AND R8 N8 {:?}", r))
 }
 
 pub fn and_r8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
@@ -1786,6 +1786,72 @@ mod tests {
 
         assert_eq!(cpu.mmu.get(0xFFFD), 0x80);
         assert_eq!(cpu.mmu.get(0xFFFC), 0x03);
+    }
+
+    #[test]
+    fn test_ret() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
+
+        cpu.push_pc(0x8002, 0x90);
+        cpu.push_pc(0x8001, 0x00);
+
+        call_n16(&mut cpu);
+
+        assert_eq!(cpu.registers.get16(Registers16::PC), 0x9000);
+
+        ret(&mut cpu);
+
+        assert_eq!(cpu.registers.get16(Registers16::PC), 0x8003);
+    }
+
+    #[test]
+    fn test_sub_r8_n8() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
+
+        cpu.registers.set8(Registers8::A, 0x3E);
+        cpu.registers.set8(Registers8::E, 0x3E);
+
+        sub_r8_r8(&mut cpu, Registers8::A, Registers8::E);
+
+        assert_eq!(cpu.registers.get8(Registers8::A), 0x00);
+
+        assert_eq!(cpu.registers.get_flag(Flag::Z), true);
+        assert_eq!(cpu.registers.get_flag(Flag::H), false);
+        assert_eq!(cpu.registers.get_flag(Flag::N), true);
+        assert_eq!(cpu.registers.get_flag(Flag::C), false);
+
+    }
+
+    #[test]
+    fn test_cp_r8_r8() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
+
+        cpu.registers.set8(Registers8::A, 0x3C);
+        cpu.registers.set8(Registers8::B, 0x2F);
+
+        cp_r8_r8(&mut cpu, Registers8::A, Registers8::B);
+
+        assert_eq!(cpu.registers.get8(Registers8::A), 0x3C);
+
+        assert_eq!(cpu.registers.get_flag(Flag::Z), false);
+        assert_eq!(cpu.registers.get_flag(Flag::H), true);
+        assert_eq!(cpu.registers.get_flag(Flag::N), true);
+        assert_eq!(cpu.registers.get_flag(Flag::C), false);
+    }
+
+    #[test]
+    fn test_cp_r8_n8() {
+        let mut cpu = CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()));
+
+        cpu.registers.set8(Registers8::A, 0x3C);
+        cpu.push_pc(0xFF80, 0x3C);
+
+        cp_r8_n8(&mut cpu, Registers8::A);
+
+        assert_eq!(cpu.registers.get_flag(Flag::Z), true);
+        assert_eq!(cpu.registers.get_flag(Flag::H), false);
+        assert_eq!(cpu.registers.get_flag(Flag::N), true);
+        assert_eq!(cpu.registers.get_flag(Flag::C), false);
     }
 }
 

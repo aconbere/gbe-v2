@@ -1,4 +1,4 @@
-use crate::register::{Registers, Registers16, Registers8};
+use crate::register::{Registers, Registers16, Registers8, IME};
 use crate::mmu::MMU;
 use crate::bytes;
 use crate::device::lcd::Mode;
@@ -89,44 +89,46 @@ impl CPU {
         if irf.vblank && ire.vblank {
             println!("vblank");
             irf.vblank = false;
-            self.registers.interrupts_enabled = false;
+            self.registers.ime = IME::Disabled;
             _call(self, 0x40);
         } else if irf.lcd_stat && ire.lcd_stat {
             println!("lcd_stat");
             irf.lcd_stat = false;
-            self.registers.interrupts_enabled = false;
+            self.registers.ime = IME::Disabled;
             _call(self, 0x48);
         } else if irf.timer && ire.timer {
             println!("timer");
             irf.timer = false;
-            self.registers.interrupts_enabled = false;
+            self.registers.ime = IME::Disabled;
             _call(self, 0x50);
         } else if irf.serial && ire.serial {
             println!("serial");
             irf.serial = false;
-            self.registers.interrupts_enabled = false;
+            self.registers.ime = IME::Disabled;
             _call(self, 0x58);
         } else if irf.joypad && ire.joypad {
             println!("joypad");
             irf.joypad = false;
-            self.registers.interrupts_enabled = false;
+            self.registers.ime = IME::Disabled;
             _call(self, 0x60);
         }
     }
 
     pub fn next_instruction(&mut self) -> Option<(Mode, Mode)> {
-        if self.registers.interrupts_enabled {
-            self.handle_interrupts();
+        match self.registers.ime {
+            IME::Queued => self.registers.ime = IME::Enabled,
+            IME::Enabled => self.handle_interrupts(),
+            _ => {},
         }
 
         let opcode = self.fetch_opcode();
-        if opcode == 0x00FC {
-            println!("DEBUG: {:?}", self.registers);
-        }
+        // if opcode == 0x00FC {
+        //     println!("DEBUG: {:?}", self.registers);
+        // }
         let result = self.execute(opcode);
 
-        // println!("DEBUG: {:?}", result.name);
-        // println!("DEBUG: {:?}", self.registers);
+        println!("DEBUG: {:?}", result.name);
+        println!("DEBUG: {:?}", self.registers);
 
         self.mmu.lcd.advance_cycles(result.cycles)
     }

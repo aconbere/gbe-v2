@@ -2,6 +2,12 @@ use super::bytes;
 use std::fmt;
 use std::fmt::Debug;
 
+pub enum IME {
+    Enabled,
+    Disabled,
+    Queued,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum Registers8 {
     A,
@@ -70,7 +76,7 @@ pub struct Registers {
     l: u8,
     sp: u16,
     pc: u16,
-    pub interrupts_enabled: bool,
+    pub ime: IME,
 }
 
 impl Registers {
@@ -86,7 +92,7 @@ impl Registers {
             l: 0,
             sp: 0xFFFE,
             pc: 0x0000,
-            interrupts_enabled: false,
+            ime: IME::Disabled,
         };
     }
 
