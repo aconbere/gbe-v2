@@ -121,11 +121,13 @@ impl CPU {
             _ => {},
         }
 
+        let previous_pc = self.registers.get16(Registers16::PC);
+
         let opcode = self.fetch_opcode();
         let result = self.execute(opcode);
 
-        // println!("DEBUG: {:X} - {:?}", current_pc, result.name);
-        // println!("DEBUG: {:?}", self.registers);
+        println!("DEBUG: {:X} - {:?}", previous_pc, result.name);
+        println!("DEBUG: {:?}", self.registers);
 
         if self.mmu.timer.advance_cycles(result.cycles) {
             self.mmu.interrupt_flag.timer = true;

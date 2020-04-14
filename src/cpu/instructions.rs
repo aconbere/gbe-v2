@@ -1226,7 +1226,7 @@ pub fn sbc_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let v = _sbc(cpu, a, b);
 
     cpu.registers.set8(r, v);
-    cycles(8, format!("SBC R8 N8 | {:?}", r))
+    cycles(8, format!("SBC R8 N8 | {:?} {:X}", r, b))
 }
 
 pub fn and_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
@@ -1236,7 +1236,7 @@ pub fn and_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let v = _and(cpu, a, b);
 
     cpu.registers.set8(r, v);
-    cycles(8, format!("AND R8 N8 | {:?}", r))
+    cycles(8, format!("AND R8 N8 | {:?} {:X}", r, b))
 }
 
 pub fn and_r8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
