@@ -7,6 +7,110 @@ use crate::device::lcd::LCD;
 use crate::device::interrupt_enable::InterruptEnable;
 use crate::rom::BootRom;
 
+#[derive(Debug, Clone, Copy)]
+pub enum Frequency {
+    F1024 = 1024,
+    F16   = 16,
+    F64   = 64,
+    F256  = 256,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct TimerControl {
+    enabled: bool,
+    frequency: Frequency,
+}
+
+impl TimerControl {
+    pub fn new() -> TimerControl {
+        TimerControl {
+            enabled: false,
+            frequency: Frequency::F1024,
+        }
+    }
+}
+
+impl std::convert::From<u8> for TimerControl {
+    fn from(byte: u8) -> Self {
+        let f = match (bytes::check_bit(byte, 0), bytes::check_bit(byte, 1)) {
+            (false, false) => Frequency::F1024,
+            (false, true)  => Frequency::F16,
+            (true, false)  => Frequency::F64,
+            (true, true)   => Frequency::F256,
+        };
+
+        TimerControl {
+            enabled: bytes::check_bit(byte, 2),
+            frequency: f,
+        }
+    }
+}
+
+impl std::convert::From<TimerControl> for u8 {
+    fn from(t: TimerControl) -> Self {
+        let mut u:u8 = 0;
+
+        u = match t.frequency {
+            Frequency::F1024 => u,
+            Frequency::F16 => u | 0b0000_00001,
+            Frequency::F64 => u | 0b0000_00010,
+            Frequency::F256 => u | 0b0000_00011,
+        };
+
+        u = bytes::set_bit(u, 2, t.enabled);
+
+        u
+    }
+}
+
+pub struct Timer {
+    pub clock: u16,
+    pub tma: u8,
+    pub tima: u8,
+    pub tac: TimerControl,
+
+    pub tima_clock: u16,
+}
+
+impl Timer {
+    pub fn advance_cycles(&mut self, n: u8) -> bool {
+        self.clock = self.clock.wrapping_add(n as u16);
+
+        if self.tac.enabled {
+            self.tima_clock = self.clock.wrapping_add(n as u16);
+
+            if self.tima_clock >= self.tac.frequency as u16 {
+                let (v, overflow) = self.tima.overflowing_add(1);
+
+                if overflow {
+                    self.tima = self.tma;
+                } else {
+                    self.tima = v;
+                }
+
+                self.tima_clock = 0;
+
+                return overflow
+            }
+        }
+        false
+    }
+
+    pub fn get_div(&self, ) -> u8 {
+        (self.clock >> 8) as u8
+    }
+
+    pub fn new() -> Timer {
+        Timer {
+            clock: 0,
+            tma: 0,
+            tima: 0,
+            tac: TimerControl::new(),
+            tima_clock: 0,
+        }
+    }
+}
+
 enum DeviceRef {
     BootRom,
     Cartridge,
@@ -28,12 +132,14 @@ pub struct MMU {
     io: Ram2k,
     ram: Ram8k,
     high_ram: HighRam,
+
     pub interrupt_enable: InterruptEnable,
     pub interrupt_flag: InterruptEnable,
 
-
     pub lcd: LCD,
     pub gpu: GPU,
+
+    pub timer: Timer,
 
     booted: bool,
 }
@@ -51,6 +157,9 @@ impl MMU {
 
             lcd: LCD::new(),
             gpu: GPU::new(),
+
+            timer: Timer::new(),
+
             booted: false,
         }
     }
@@ -65,6 +174,10 @@ impl MMU {
             (_, DeviceRef::Unused) => 0x00,
             (start, DeviceRef::IORegisters) => {
                 match address {
+                    0xFF04 => self.timer.get_div(),
+                    0xFF05 => self.timer.tima,
+                    0xFF06 => self.timer.tma,
+                    0xFF07 => u8::from(self.timer.tac),
                     0xFF0F => u8::from(self.interrupt_flag),
                     0xFF40..=0xFF4B => self.lcd.get(address - start),
                     _ => self.io.get(address - start)
@@ -92,6 +205,19 @@ impl MMU {
             (_, DeviceRef::Unused) => {},
             (start, DeviceRef::IORegisters) => {
                 match address {
+                    0xFF04 => self.timer.clock = 0,
+                    0xFF05 => {
+                        self.timer.tima = value;
+                        println!("setting tima: {}", value);
+                    },
+                    0xFF06 => {
+                        self.timer.tma = value;
+                        println!("setting tma: {}", value);
+                    },
+                    0xFF07 => {
+                        self.timer.tac = TimerControl::from(value);
+                        println!("setting tac: {}", value);
+                    },
                     0xFF0F => {
                         self.interrupt_flag = InterruptEnable::from(value);
                     },

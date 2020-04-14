@@ -84,7 +84,7 @@ impl CPU {
 
     fn handle_interrupts(&mut self) {
         let ire = self.mmu.interrupt_enable;
-        let mut irf = self.mmu.interrupt_flag;
+        let mut irf = &mut self.mmu.interrupt_flag;
 
         if irf.vblank && ire.vblank {
             println!("vblank");
@@ -122,13 +122,14 @@ impl CPU {
         }
 
         let opcode = self.fetch_opcode();
-        // if opcode == 0x00FC {
-        //     println!("DEBUG: {:?}", self.registers);
-        // }
         let result = self.execute(opcode);
 
-        println!("DEBUG: {:?}", result.name);
-        println!("DEBUG: {:?}", self.registers);
+        // println!("DEBUG: {:X} - {:?}", current_pc, result.name);
+        // println!("DEBUG: {:?}", self.registers);
+
+        if self.mmu.timer.advance_cycles(result.cycles) {
+            self.mmu.interrupt_flag.timer = true;
+        }
 
         self.mmu.lcd.advance_cycles(result.cycles)
     }

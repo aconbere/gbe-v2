@@ -357,7 +357,7 @@ pub fn dec_r8(cpu: &mut CPU, r:Registers8) -> OpResult {
     cpu.registers.set_flag(Flag::N, true);
     cpu.registers.set_flag(Flag::H, bytes::check_half_carry_sub8(i, 1));
 
-    cycles(4, format!("DEC R8 {:?}", r))
+    cycles(4, format!("DEC R8 | {:?}", r))
 }
 
 /* Decrement register r
@@ -369,7 +369,7 @@ pub fn dec_r16(cpu: &mut CPU, r: Registers16) -> OpResult {
 
     cpu.registers.set16(r, v);
 
-    cycles(8, format!("DEC R16 {:?}", r))
+    cycles(8, format!("DEC R16 | {:?}", r))
 }
 
 /* Decrement memory pointed to by register r
@@ -387,7 +387,7 @@ pub fn dec_ar16(cpu: &mut CPU, r:Registers16) -> OpResult {
     cpu.registers.set_flag(Flag::H, bytes::check_half_carry_sub8(i, 1));
 
 
-    cycles(12, format!("DEC AR16 {:?}", r))
+    cycles(12, format!("DEC AR16 | {:?}", r))
 }
 
 /* Increment register r
@@ -402,7 +402,7 @@ pub fn inc_r8(cpu: &mut CPU, r: Registers8) -> OpResult {
     cpu.registers.set_flag(Flag::N, false);
     cpu.registers.set_flag(Flag::H, bytes::check_half_carry8(i, 1));
 
-    cycles(4, format!("INC R8 {:?}", r))
+    cycles(4, format!("INC R8 | {:?}", r))
 }
 
 /* Incremenet register r
@@ -413,7 +413,7 @@ pub fn inc_r16(cpu: &mut CPU, r: Registers16) -> OpResult {
 
     cpu.registers.set16(r, v);
 
-    cycles(8, format!("INC R16 {:?}", r))
+    cycles(8, format!("INC R16 | {:?}", r))
 }
 
 
@@ -432,7 +432,7 @@ pub fn inc_ar16(cpu: &mut CPU, r:Registers16) -> OpResult {
     cpu.registers.set_flag(Flag::H, bytes::check_half_carry8(i, 1));
 
 
-    cycles(12, format!("INC AR16 {:?}", r))
+    cycles(12, format!("INC AR16 | {:?}", r))
 }
 
 
@@ -445,7 +445,7 @@ pub fn ld_ar16_r8(cpu: &mut CPU, r1: Registers16, r2: Registers8) -> OpResult {
     let value = cpu.registers.get8(r2);
     cpu.mmu.set(address, value);
 
-    cycles(8, format!("LD AR16 R8 {:?} {:?}", r1, r2))
+    cycles(8, format!("LD AR16 R8 | {:?} {:?}", r1, r2))
 }
 
 /* Loads a 8 bit immediate value into the memory addressed by r
@@ -454,7 +454,7 @@ pub fn ld_ar16_n8(cpu: &mut CPU, r: Registers16) -> OpResult {
     let address = cpu.registers.get16(r);
     let value = cpu.fetch_arg_8();
     cpu.mmu.set(address, value);
-    cycles(12, format!("LD AR16 N8 {:?}", r))
+    cycles(12, format!("LD AR16 N8 | {:?}", r))
 }
 
 /* Loads a 8 bit value from the memory addressed by r2 into r1
@@ -463,7 +463,7 @@ pub fn ld_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
     let address = cpu.registers.get16(r2);
     let value = cpu.mmu.get(address);
     cpu.registers.set8(r1, value);
-    cycles(8, format!("LD R8 AR16 {:?} {:?}", r1, r2))
+    cycles(8, format!("LD R8 AR16 | {:?} {:?}", r1, r2))
 }
 
 /* Loads a 8 bit value from the memory addressed by a 16 bit immediate value into r1
@@ -472,7 +472,7 @@ pub fn ld_r8_an16(cpu: &mut CPU, r: Registers8) -> OpResult {
     let address = cpu.fetch_arg_16();
     let value = cpu.mmu.get(address);
     cpu.registers.set8(r, value);
-    cycles(16, format!("LD R8 AN16 {:?} {:X}", r, value))
+    cycles(16, format!("LD R8 AN16 | {:?} {:X}", r, value))
 }
 
 /* Loads a 8 bit value from the memory addressed by r2 into r1
@@ -485,7 +485,7 @@ pub fn ldi_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
     cpu.registers.set8(r1, value);
     cpu.registers.set16(r2, address.wrapping_add(1));
 
-    cycles(8, format!("LDI R8 AR16 {:?} {:?}", r1, r2))
+    cycles(8, format!("LDI R8 AR16 | {:?} {:?}", r1, r2))
 }
 
 /* Loads a 8 bit value from the memory addressed by r2 into r1
@@ -497,7 +497,7 @@ pub fn ldd_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
 
     cpu.registers.set8(r1, value);
     cpu.registers.set16(r2, address.wrapping_sub(1));
-    cycles(8, format!("LDD R7 AR16 {:?} {:?}", r1, r2))
+    cycles(8, format!("LDD R7 AR16 | {:?} {:?}", r1, r2))
 }
 
 /* Loads a 8 bit value from r2 into the memory addressed by r1
@@ -510,7 +510,7 @@ pub fn ldi_ar16_r8(cpu: &mut CPU, r1: Registers16, r2: Registers8) -> OpResult {
     cpu.mmu.set(address, value);
     cpu.registers.set16(r1, address.wrapping_add(1));
 
-    cycles(8, format!("LDI AR16 R8 {:?} {:?}", r1, r2))
+    cycles(8, format!("LDI AR16 R8 | {:?} {:?}", r1, r2))
 }
 
 /* Loads a 8 bit value from r2 into the memory addressed by r1
@@ -522,7 +522,7 @@ pub fn ldd_ar16_r8(cpu: &mut CPU, r1: Registers16, r2: Registers8) -> OpResult {
 
     cpu.mmu.set(address, value);
     cpu.registers.set16(r1, address.wrapping_sub(1));
-    cycles(8, format!("LDD AR16 R8 {:?} {:?}", r1, r2))
+    cycles(8, format!("LDD AR16 R8 | {:?} {:?}", r1, r2))
 }
 
 /* Loads a 8 bit immediate value into r
@@ -530,7 +530,7 @@ pub fn ldd_ar16_r8(cpu: &mut CPU, r1: Registers16, r2: Registers8) -> OpResult {
 pub fn ld_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let value = cpu.fetch_arg_8();
     cpu.registers.set8(r, value);
-    cycles(8, format!("LD R8 N8 {:?} {:X}", r, value))
+    cycles(8, format!("LD R8 N8 | {:?} {:X}", r, value))
 }
 
 /* Loads a 8 bit value from r2 into r1
@@ -538,7 +538,7 @@ pub fn ld_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
 pub fn ld_r8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
     let value = cpu.registers.get8(r2);
     cpu.registers.set8(r1, value);
-    cycles(4, format!("LD R8 R8 {:?} {:?}", r1, r2))
+    cycles(4, format!("LD R8 R8 | {:?} {:?}", r1, r2))
 }
 
 /* Loads a 16 bit value from r into the the memory addressed by a 16 bit immediate value
@@ -547,7 +547,7 @@ pub fn ld_an16_r16(cpu: &mut CPU, r: Registers16) -> OpResult {
     let value = cpu.registers.get16(r);
     let address = cpu.fetch_arg_16();
     cpu.mmu.set16(address, value);
-    cycles(20, format!("LD AN16 R16 {:X} {:?}", value, r))
+    cycles(20, format!("LD AN16 R16 | {:X} {:?}", value, r))
 }
 
 /* Loads an 8 bit value from r into the the memory addressed by a 16 bit immediate value 
@@ -556,7 +556,7 @@ pub fn ld_an16_r8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let value = cpu.registers.get8(r);
     let address = cpu.fetch_arg_16();
     cpu.mmu.set(address, value);
-    cycles(16, format!("LD AN16 R8 {:X}, {:?}", value, r))
+    cycles(16, format!("LD AN16 R8 | {:X}, {:?}", value, r))
 }
 
 /* Loads a 16 bit value from args into the register r
@@ -564,7 +564,7 @@ pub fn ld_an16_r8(cpu: &mut CPU, r: Registers8) -> OpResult {
 pub fn ld_r16_n16(cpu: &mut CPU, r: Registers16) -> OpResult {
     let value = cpu.fetch_arg_16();
     cpu.registers.set16(r, value);
-    cycles(12, format!("LD R16 N16 {:?} {:X}", r, value))
+    cycles(12, format!("LD R16 N16 | {:?} {:X}", r, value))
 }
 
 /* Loads a 16 bit value from r1 into r2
@@ -572,7 +572,7 @@ pub fn ld_r16_n16(cpu: &mut CPU, r: Registers16) -> OpResult {
 pub fn ld_r16_r16(cpu: &mut CPU, r1: Registers16, r2: Registers16) -> OpResult {
     let value = cpu.registers.get16(r1);
     cpu.registers.set16(r2, value);
-    cycles(12, format!("LD R16 R16 {:?} {:?}", r1, r2))
+    cycles(12, format!("LD R16 R16 | {:?} {:?}", r1, r2))
 }
 
 pub fn ld_r16_spn8(cpu: &mut CPU, r: Registers16) -> OpResult {
@@ -583,7 +583,7 @@ pub fn ld_r16_spn8(cpu: &mut CPU, r: Registers16) -> OpResult {
 
     cpu.registers.set16(r, v);
 
-    cycles(12, format!("LD R16 SPN8 {:?} {:X}", r, b))
+    cycles(12, format!("LD R16 SPN8 | {:?} {:X}", r, b))
 }
 
 /* Loads an 8 bit value from r value into the memory at FF00 + an
@@ -592,7 +592,7 @@ pub fn ldh_an8_r8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let v = cpu.registers.get8(r);
     let an = cpu.fetch_arg_8() as u16;
     cpu.mmu.set(0xFF00 + an, v);
-    cycles(12, format!("LDH AN8 R8 {:X}, {:?}", an, r))
+    cycles(12, format!("LDH AN8 R8 | {:X}, {:?}", an, r))
 }
 
 pub fn ldh_r8_an8(cpu: &mut CPU, r: Registers8) -> OpResult {
@@ -600,7 +600,7 @@ pub fn ldh_r8_an8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let v = cpu.mmu.get(0xFF00 + an);
 
     cpu.registers.set8(r, v);
-    cycles(12, format!("LDH R8 AN8 {:?} {:X}", r, an))
+    cycles(12, format!("LDH R8 AN8 | {:?} {:X}", r, an))
 }
 
 pub fn ldc_ar8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
@@ -608,7 +608,7 @@ pub fn ldc_ar8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
     let v = cpu.registers.get8(r2);
 
     cpu.mmu.set(0xFF00 + ar, v);
-    cycles(12, format!("LDC AR8 R8 {:?} {:?}", r1, r2))
+    cycles(12, format!("LDC AR8 R8 | {:?} {:?}", r1, r2))
 }
 
 pub fn ldc_r8_ar8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
@@ -616,7 +616,7 @@ pub fn ldc_r8_ar8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
     let v = cpu.mmu.get(0xFF00 + ar);
 
     cpu.registers.set8(r1, v);
-    cycles(12, format!("LDC R8 AR8 {:?} {:?}", r1, r2))
+    cycles(12, format!("LDC R8 AR8 | {:?} {:?}", r1, r2))
 }
 
 /* Shifts and Rotates */
@@ -641,7 +641,7 @@ pub fn rl_r8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let value = cpu.registers.get8(r);
     let out = _rl(cpu, value);
     cpu.registers.set8(r, out);
-    cycles(8, format!("RL R8 {:?}", r))
+    cycles(8, format!("RL R8 | {:?}", r))
 }
 
 /* Rotates memory addressed by register r left through the C register
@@ -653,7 +653,7 @@ pub fn rl_ar16(cpu: &mut CPU, r: Registers16) -> OpResult {
     let value = cpu.mmu.get(address);
     let out = _rl(cpu, value);
     cpu.mmu.set(address, out);
-    cycles(16, format!("RL AR16 {:?}", r))
+    cycles(16, format!("RL AR16 | {:?}", r))
 }
 
 /* Rotates the A register right, puts the shifted bit in c
@@ -676,7 +676,7 @@ pub fn rrc_r8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let value = cpu.registers.get8(r);
     let out = _rrc(cpu, value);
     cpu.registers.set8(r, out);
-    cycles(8, format!("RRC R8 {:?}", r))
+    cycles(8, format!("RRC R8 | {:?}", r))
 }
 
 /* Rotates the memory pointed to by r16 right, puts the shifted bit in c
@@ -688,7 +688,7 @@ pub fn rrc_ar16(cpu: &mut CPU, r: Registers16) -> OpResult {
     let value = cpu.mmu.get(address);
     let out = _rrc(cpu, value);
     cpu.mmu.set(address, out);
-    cycles(16, format!("RRC AR16 {:?}", r))
+    cycles(16, format!("RRC AR16 | {:?}", r))
 }
 
 /* Rotates the A register right through the C register
@@ -711,7 +711,7 @@ pub fn rr_r8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let value = cpu.registers.get8(r);
     let out = _rr(cpu, value);
     cpu.registers.set8(r, out);
-    cycles(9, format!("RR R8: {:?}", r))
+    cycles(9, format!("RR R8: | {:?}", r))
 }
 
 /* Rotates the memory pointed to from r right through the C register
@@ -723,7 +723,7 @@ pub fn rr_ar16(cpu: &mut CPU, r: Registers16) -> OpResult {
     let value = cpu.mmu.get(address);
     let out = _rr(cpu, value);
     cpu.mmu.set(address, out);
-    cycles(16, format!("RR AR16 {:?}", r))
+    cycles(16, format!("RR AR16 | {:?}", r))
 }
 
 /* Rotates the A register left, puts the shifted bit in c
@@ -742,7 +742,7 @@ pub fn rlc_r8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let value = cpu.registers.get8(r);
     let out = _rlc(cpu, value);
     cpu.registers.set8(r, out);
-    cycles(8, format!("RLC R8 {:?}", r))
+    cycles(8, format!("RLC R8 | {:?}", r))
 }
 
 pub fn rlc_ar16(cpu: &mut CPU, r: Registers16) -> OpResult {
@@ -750,7 +750,7 @@ pub fn rlc_ar16(cpu: &mut CPU, r: Registers16) -> OpResult {
     let value = cpu.mmu.get(address);
     let out = _rlc(cpu, value);
     cpu.mmu.set(address, out);
-    cycles(16, format!("RLC AR16 {:?}", r))
+    cycles(16, format!("RLC AR16 | {:?}", r))
 }
 
 /* Shift the contents of register r left into Carry. LSB of n set to 0.
@@ -759,7 +759,7 @@ pub fn sla_r8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let value = cpu.registers.get8(r);
     let out = _sla(cpu, value);
     cpu.registers.set8(r, out);
-    cycles(8, format!("SLA R8 {:?}", r))
+    cycles(8, format!("SLA R8 | {:?}", r))
 }
 
 /* Shift the memory addressed by r left into Carry. LSB of n set to 0.
@@ -769,7 +769,7 @@ pub fn sla_ar16(cpu: &mut CPU, r: Registers16) -> OpResult {
     let value = cpu.mmu.get(address);
     let out = _sla(cpu, value);
     cpu.mmu.set(address, out);
-    cycles(16, format!("SLA AR16 {:?}", r))
+    cycles(16, format!("SLA AR16 | {:?}", r))
 }
 
 /* Shift the contents of register r right into Carry. LSB of n set to 0.
@@ -778,7 +778,7 @@ pub fn sra_r8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let value = cpu.registers.get8(r);
     let out = _sra(cpu, value);
     cpu.registers.set8(r, out);
-    cycles(8, format!("SRA R8 {:?}", r))
+    cycles(8, format!("SRA R8 | {:?}", r))
 }
 
 /* Shift the memory addressed by r right into Carry. LSB of n set to 0.
@@ -788,7 +788,7 @@ pub fn sra_ar16(cpu: &mut CPU, r: Registers16) -> OpResult {
     let value = cpu.mmu.get(address);
     let out = _sra(cpu, value);
     cpu.mmu.set(address, out);
-    cycles(16 , format!("SRA AR16 {:?}", r))
+    cycles(16 , format!("SRA AR16 | {:?}", r))
 }
 
 /* Halt CPU & LCD display until button pressed
@@ -836,26 +836,26 @@ pub fn jp_f_n16(cpu: &mut CPU, f: JumpFlag) -> OpResult {
         }
     }
 
-    cycles(12, format!("JP F N16 {:?} {:X}", f, n))
+    cycles(12, format!("JP F N16 | {:?} {:X}", f, n))
 }
 
 pub fn jp_n16(cpu: &mut CPU) -> OpResult {
     let n = cpu.fetch_arg_16();
     _jump(cpu, n);
-    cycles(12, format!("JP N16 {:X}", n))
+    cycles(12, format!("JP N16 | {:X}", n))
 }
 
 pub fn jp_r16(cpu: &mut CPU, r: Registers16) -> OpResult {
     let n = cpu.registers.get16(r);
     _jump(cpu, n);
-    cycles(4, format!("JP AR16 {:?}", r))
+    cycles(4, format!("JP AR16 | {:?}", r))
 }
 
 pub fn call_n16(cpu: &mut CPU) -> OpResult {
     let v = cpu.fetch_arg_16();
     _push(cpu, Registers16::PC);
     _jump(cpu, v);
-    cycles(12, format!("CALL N16 {:X}", v))
+    cycles(12, format!("CALL N16 | {:X}", v))
 }
 
 pub fn call_f_n16(cpu: &mut CPU, f: JumpFlag) -> OpResult {
@@ -884,19 +884,19 @@ pub fn call_f_n16(cpu: &mut CPU, f: JumpFlag) -> OpResult {
         }
     }
 
-    cycles(12, format!("CALL F N16 {:?} {:X}", f, n))
+    cycles(12, format!("CALL F N16 | {:?} {:X}", f, n))
 }
 
 pub fn push_r16(cpu: &mut CPU, r: Registers16) -> OpResult {
     _push(cpu, r);
-    cycles(16, format!("PUSH R16 {:?}", r))
+    cycles(16, format!("PUSH R16 | {:?}", r))
 }
 
 pub fn rst_f(cpu: &mut CPU, f: RstFlag) -> OpResult {
     let location = rst_locations(f);
     _push(cpu, Registers16::PC);
     _jump(cpu, location);
-    cycles(32, format!("RST F {:?}", f))
+    cycles(32, format!("RST F | {:?}", f))
 
 }
 
@@ -952,19 +952,19 @@ pub fn ret_f(cpu: &mut CPU, f: JumpFlag) -> OpResult {
         }
     }
 
-    cycles(8, format!("RET F {:?}", f))
+    cycles(8, format!("RET F | {:?}", f))
 }
 
 
 pub fn pop_r16(cpu: &mut CPU, r: Registers16) -> OpResult {
     _pop(cpu, r);
-    cycles(12, format!("POP R16 {:?}", r))
+    cycles(12, format!("POP R16 | {:?}", r))
 }
 
 pub fn jr_n8(cpu: &mut CPU) -> OpResult {
     let n = cpu.fetch_arg_8();
     _jr(cpu, n);
-    cycles(8, format!("JR N8 {:X}", n))
+    cycles(8, format!("JR N8 | {:X}", n))
 }
 
 
@@ -994,7 +994,7 @@ pub fn jr_f_n8(cpu: &mut CPU, f: JumpFlag) -> OpResult {
         }
     }
 
-    cycles(8, format!("JR F N8 {:?} {:X}", f, n))
+    cycles(8, format!("JR F N8 | {:?} {:X}", f, n))
 }
 
 /* Applies the binary complement to the A register
@@ -1085,7 +1085,7 @@ pub fn add_r16_n8(cpu: &mut CPU, r: Registers16) -> OpResult {
 
     cpu.registers.set16(r, v);
 
-    cycles(16, format!("ADD R16 N8 {:?} {:X}", r, b))
+    cycles(16, format!("ADD R16 N8 | {:?} {:X}", r, b))
 }
 
 pub fn add_r8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
@@ -1095,7 +1095,7 @@ pub fn add_r8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
     let v = _add(cpu, a, b);
 
     cpu.registers.set8(r1, v);
-    cycles(4, format!("ADD R8 R8 {:?} {:?}", r1, r2))
+    cycles(4, format!("ADD R8 R8 | {:?} {:?}", r1, r2))
 }
 
 pub fn add_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
@@ -1105,7 +1105,7 @@ pub fn add_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let v = _add(cpu, a, b);
 
     cpu.registers.set8(r, v);
-    cycles(8, format!("ADD R8 N8 {:?} {:X}", r, b))
+    cycles(8, format!("ADD R8 N8 | {:?} {:X}", r, b))
 }
 
 pub fn add_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
@@ -1116,7 +1116,7 @@ pub fn add_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
     let v = _add(cpu, a, b);
 
     cpu.registers.set8(r1, v);
-    cycles(8, format!("ADD R8 AR16 {:?} {:?}", r1, r2))
+    cycles(8, format!("ADD R8 AR16 | {:?} {:?}", r1, r2))
 }
 
 pub fn adc_r8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
@@ -1127,7 +1127,7 @@ pub fn adc_r8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
 
     cpu.registers.set8(r1, v);
 
-    cycles(4, format!("ADC R8 R8 {:?} {:?}", r1, r2))
+    cycles(4, format!("ADC R8 R8 | {:?} {:?}", r1, r2))
 }
 
 pub fn adc_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
@@ -1138,7 +1138,7 @@ pub fn adc_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
     let v = _adc(cpu, a, b);
 
     cpu.registers.set8(r1, v);
-    cycles(8, format!("ADC R8 AR16 {:?} {:?}", r1, r2))
+    cycles(8, format!("ADC R8 AR16 | {:?} {:?}", r1, r2))
 }
 
 pub fn adc_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
@@ -1148,7 +1148,7 @@ pub fn adc_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let v = _adc(cpu, a, b);
 
     cpu.registers.set8(r, v);
-    cycles(8, format!("ADC R8 N8 {:?}", r))
+    cycles(8, format!("ADC R8 N8 | {:?}", r))
 }
 
 pub fn add_r16_r16(cpu: &mut CPU, r1: Registers16, r2: Registers16) -> OpResult {
@@ -1163,7 +1163,7 @@ pub fn add_r16_r16(cpu: &mut CPU, r1: Registers16, r2: Registers16) -> OpResult 
     cpu.registers.set_flag(Flag::N, false);
     cpu.registers.set_flag(Flag::H, bytes::check_half_carry16(a, b));
 
-    cycles(8, format!("ADD R16 R16 {:?} {:?}", r1, r2))
+    cycles(8, format!("ADD R16 R16 | {:?} {:?}", r1, r2))
 }
 
 
@@ -1174,7 +1174,7 @@ pub fn sub_r8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
     let v = _sub(cpu, a, b);
 
     cpu.registers.set8(r1, v);
-    cycles(4, format!("SUB R8 R8 {:?} {:?}", r1, r2))
+    cycles(4, format!("SUB R8 R8 | {:?} {:?}", r1, r2))
 }
 
 pub fn sub_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
@@ -1185,7 +1185,7 @@ pub fn sub_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
     let v = _sub(cpu, a, b);
 
     cpu.registers.set8(r1, v);
-    cycles(8, format!("SUB R8 AR16 {:?} {:?}", r1, r2))
+    cycles(8, format!("SUB R8 AR16 | {:?} {:?}", r1, r2))
 }
 
 pub fn sub_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
@@ -1195,7 +1195,7 @@ pub fn sub_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let v = _sub(cpu, a, b);
 
     cpu.registers.set8(r, v);
-    cycles(8, format!("SUB R8 N8 {:?}", r))
+    cycles(8, format!("SUB R8 N8 | {:?}", r))
 }
 
 pub fn sbc_r8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
@@ -1205,7 +1205,7 @@ pub fn sbc_r8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
     let v = _sbc(cpu, a, b);
 
     cpu.registers.set8(r1, v);
-    cycles(4, format!("SBC R8 R8 {:?} {:?}", r1, r2))
+    cycles(4, format!("SBC R8 R8 | {:?} {:?}", r1, r2))
 }
 
 pub fn sbc_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
@@ -1216,7 +1216,7 @@ pub fn sbc_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
     let v = _sbc(cpu, a, b);
 
     cpu.registers.set8(r1, v);
-    cycles(8, format!("SBC R8 R16 {:?} {:?}", r1, r2))
+    cycles(8, format!("SBC R8 R16 | {:?} {:?}", r1, r2))
 }
 
 pub fn sbc_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
@@ -1226,7 +1226,7 @@ pub fn sbc_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let v = _sbc(cpu, a, b);
 
     cpu.registers.set8(r, v);
-    cycles(8, format!("SBC R8 N8 {:?}", r))
+    cycles(8, format!("SBC R8 N8 | {:?}", r))
 }
 
 pub fn and_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
@@ -1236,7 +1236,7 @@ pub fn and_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let v = _and(cpu, a, b);
 
     cpu.registers.set8(r, v);
-    cycles(8, format!("AND R8 N8 {:?}", r))
+    cycles(8, format!("AND R8 N8 | {:?}", r))
 }
 
 pub fn and_r8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
@@ -1246,7 +1246,7 @@ pub fn and_r8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
     let v = _and(cpu, a, b);
 
     cpu.registers.set8(r1, v);
-    cycles(4, format!("ADD R8 R8 {:?} {:?}", r1, r2))
+    cycles(4, format!("ADD R8 R8 | {:?} {:?}", r1, r2))
 }
 
 pub fn and_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
@@ -1257,7 +1257,7 @@ pub fn and_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
     let v = _and(cpu, a, b);
 
     cpu.registers.set8(r1, v);
-    cycles(8, format!("AND R8 AR16 {:?} {:?}", r1, r2))
+    cycles(8, format!("AND R8 AR16 | {:?} {:?}", r1, r2))
 }
 
 pub fn xor_r8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
@@ -1267,7 +1267,7 @@ pub fn xor_r8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
     let v = _xor(cpu, a, b);
 
     cpu.registers.set8(r1, v);
-    cycles(4, format!("XOR R8 R8 {:?} {:?}", r1, r2))
+    cycles(4, format!("XOR R8 R8 | {:?} {:?}", r1, r2))
 }
 
 pub fn xor_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
@@ -1277,7 +1277,7 @@ pub fn xor_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let v = _xor(cpu, a, b);
 
     cpu.registers.set8(r, v);
-    cycles(8, format!("XOR R8 N8 {:?}", r))
+    cycles(8, format!("XOR R8 N8 | {:?}", r))
 }
 
 pub fn xor_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
@@ -1288,7 +1288,7 @@ pub fn xor_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
     let v = _xor(cpu, a, b);
 
     cpu.registers.set8(r1, v);
-    cycles(8, format!("XOR R8 AR16 {:?} {:?}", r1, r2))
+    cycles(8, format!("XOR R8 AR16 | {:?} {:?}", r1, r2))
 }
 
 pub fn or_r8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
@@ -1298,7 +1298,7 @@ pub fn or_r8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
     let v = _or(cpu, a, b);
 
     cpu.registers.set8(r1, v);
-    cycles(4, format!("OX R8 R8 {:?} {:?}", r1, r2))
+    cycles(4, format!("OX R8 R8 | {:?} {:?}", r1, r2))
 }
 
 pub fn or_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
@@ -1308,7 +1308,7 @@ pub fn or_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let v = _or(cpu, a, b);
 
     cpu.registers.set8(r, v);
-    cycles(8, format!("OR R8 N8 {:?}", r))
+    cycles(8, format!("OR R8 N8 | {:?}", r))
 }
 
 pub fn or_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
@@ -1319,7 +1319,7 @@ pub fn or_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
     let v = _or(cpu, a, b);
 
     cpu.registers.set8(r1, v);
-    cycles(8, format!("OR R8 AR16 {:?} {:?}", r1, r2))
+    cycles(8, format!("OR R8 AR16 | {:?} {:?}", r1, r2))
 }
 
 pub fn cp_r8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
@@ -1328,7 +1328,7 @@ pub fn cp_r8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
 
     _sub(cpu, a, b);
 
-    cycles(4, format!("CP R8 R8 {:?} {:?}", r1, r2))
+    cycles(4, format!("CP R8 R8 | {:?} {:?}", r1, r2))
 }
 
 pub fn cp_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
@@ -1337,7 +1337,7 @@ pub fn cp_r8_n8(cpu: &mut CPU, r: Registers8) -> OpResult {
 
     _sub(cpu, a, b);
 
-    cycles(8, format!("CP R8 N8 {:?} {:X}", r, b))
+    cycles(8, format!("CP R8 N8 | {:?} {:X}", r, b))
 }
 
 pub fn cp_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
@@ -1347,14 +1347,14 @@ pub fn cp_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {
 
     _sub(cpu, a, b);
 
-    cycles(8, format!("CP R8 AR16 {:?} {:?}", r1, r2))
+    cycles(8, format!("CP R8 AR16 | {:?} {:?}", r1, r2))
 }
 
 pub fn swap_r8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let value = cpu.registers.get8(r);
     let out = _swap(cpu, value);
     cpu.registers.set8(r, out);
-    cycles(8, format!("SWAP {:?}", r))
+    cycles(8, format!("SWAP | {:?}", r))
 }
 
 pub fn swap_ar16(cpu: &mut CPU, r: Registers16) -> OpResult {
@@ -1363,7 +1363,7 @@ pub fn swap_ar16(cpu: &mut CPU, r: Registers16) -> OpResult {
     let out = _swap(cpu, value);
     cpu.mmu.set(address, out);
 
-    cycles(16, format!("SWAP {:?}", r))
+    cycles(16, format!("SWAP | {:?}", r))
 }
 
 pub fn srl_r8(cpu: &mut CPU, r: Registers8) -> OpResult {
@@ -1371,7 +1371,7 @@ pub fn srl_r8(cpu: &mut CPU, r: Registers8) -> OpResult {
     let out = _srl(cpu, value);
     cpu.registers.set8(r, out);
 
-    cycles(8, format!("SRC R8 {:?}", r))
+    cycles(8, format!("SRC R8 | {:?}", r))
 }
 
 pub fn srl_ar16(cpu: &mut CPU, r: Registers16) -> OpResult {
@@ -1380,7 +1380,7 @@ pub fn srl_ar16(cpu: &mut CPU, r: Registers16) -> OpResult {
     let out = _srl(cpu, value);
     cpu.mmu.set(address, out);
 
-    cycles(16, format!("SRL AR16 {:?}", r))
+    cycles(16, format!("SRL AR16 | {:?}", r))
 }
 
 pub fn bit_r8(cpu: &mut CPU, n:u8, r: Registers8) -> OpResult {
@@ -1388,7 +1388,7 @@ pub fn bit_r8(cpu: &mut CPU, n:u8, r: Registers8) -> OpResult {
 
     _bit(cpu, n, value);
 
-    cycles(8, format!("BIT R8 {:?} {:?}", n, r))
+    cycles(8, format!("BIT R8 | {:?} {:?}", n, r))
 }
 
 pub fn bit_ar16(cpu: &mut CPU, n:u8, r: Registers16) -> OpResult {
@@ -1397,7 +1397,7 @@ pub fn bit_ar16(cpu: &mut CPU, n:u8, r: Registers16) -> OpResult {
 
     _bit(cpu, n, value);
 
-    cycles(16, format!("BIT AR16 {:?} {:?}", n, r))
+    cycles(16, format!("BIT AR16 | {:?} {:?}", n, r))
 }
 
 pub fn res_r8(cpu: &mut CPU, n:u8, r: Registers8) -> OpResult {
@@ -1407,7 +1407,7 @@ pub fn res_r8(cpu: &mut CPU, n:u8, r: Registers8) -> OpResult {
 
     cpu.registers.set8(r, out);
 
-    cycles(8, format!("RES R8 {:?} {:?}", n, r))
+    cycles(8, format!("RES R8 | {:?} {:?}", n, r))
 }
 
 pub fn res_ar16(cpu: &mut CPU, n:u8, r: Registers16) -> OpResult {
@@ -1418,7 +1418,7 @@ pub fn res_ar16(cpu: &mut CPU, n:u8, r: Registers16) -> OpResult {
 
     cpu.mmu.set(address, out);
 
-    cycles(16, format!("RES AR16 {:?} {:?}", n, r))
+    cycles(16, format!("RES AR16 | {:?} {:?}", n, r))
 }
 
 pub fn set_r8(cpu: &mut CPU, n:u8, r: Registers8) -> OpResult {
@@ -1428,7 +1428,7 @@ pub fn set_r8(cpu: &mut CPU, n:u8, r: Registers8) -> OpResult {
 
     cpu.registers.set8(r, out);
 
-    cycles(8, format!("SET R8 {:?} {:?}", n, r))
+    cycles(8, format!("SET R8 | {:?} {:?}", n, r))
 }
 
 pub fn set_ar16(cpu: &mut CPU, n:u8, r: Registers16) -> OpResult {
@@ -1439,7 +1439,7 @@ pub fn set_ar16(cpu: &mut CPU, n:u8, r: Registers16) -> OpResult {
 
     cpu.mmu.set(address, out);
 
-    cycles(16, format!("SET AR16 {:?} {:?}", n, r))
+    cycles(16, format!("SET AR16 | {:?} {:?}", n, r))
 }
 
 pub fn illegal_opcode(opcode: &str) -> OpResult {
