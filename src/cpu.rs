@@ -8,13 +8,20 @@ mod instructions;
 
 use instructions::{JumpFlag, RstFlag, _call};
 
+pub enum HaltedState {
+    Halted,
+    HaltedNoJump,
+    HaltBug,
+    NoHalt
+}
+
 pub struct CPU {
     pub mmu: MMU,
     registers: Registers,
 
     pub buffer: framebuffer::Buffer,
     pub stopped: bool,
-    pub halted: bool,
+    pub halted: HaltedState,
 }
 
 impl CPU {
@@ -24,7 +31,7 @@ impl CPU {
             registers: Registers::new(),
             buffer: framebuffer::new(),
             stopped: false,
-            halted: false,
+            halted: HaltedState::NoHalt,
         }
     }
 
@@ -57,9 +64,10 @@ impl CPU {
                 _ => {},
             }
 
-            if self.stopped || self.halted {
-                break;
-            }
+            /* If we triggered a stop or halt exist this loop */
+            // if self.stopped || self.halted {
+            //     break;
+            // }
         }
     }
 
@@ -82,52 +90,79 @@ impl CPU {
         self.mmu.set(address, value);
     }
 
-    fn handle_interrupts(&mut self) {
-        let ire = self.mmu.interrupt_enable;
-        let mut irf = &mut self.mmu.interrupt_flag;
+    fn interrupt_available(&self) -> bool {
+        let _if = u8::from(self.mmu.interrupt_flag);
+        let _ie = u8::from(self.mmu.interrupt_enable);
+        self.registers.ime.enabled() && (_if & _ie & 0x1F) == 0
+    }
 
-        if irf.vblank && ire.vblank {
-            println!("vblank");
-            irf.vblank = false;
+    fn handle_interrupts(&mut self) {
+        let _ie = self.mmu.interrupt_enable;
+        let mut _if = &mut self.mmu.interrupt_flag;
+
+        if _if.vblank && _ie.vblank {
+            _if.vblank = false;
             self.registers.ime = IME::Disabled;
             _call(self, 0x40);
-        } else if irf.lcd_stat && ire.lcd_stat {
-            println!("lcd_stat");
-            irf.lcd_stat = false;
+        } else if _if.lcd_stat && _ie.lcd_stat {
+            _if.lcd_stat = false;
             self.registers.ime = IME::Disabled;
             _call(self, 0x48);
-        } else if irf.timer && ire.timer {
-            println!("timer");
-            irf.timer = false;
+        } else if _if.timer && _ie.timer {
+            println!("INT Timer");
+            _if.timer = false;
             self.registers.ime = IME::Disabled;
             _call(self, 0x50);
-        } else if irf.serial && ire.serial {
-            println!("serial");
-            irf.serial = false;
+        } else if _if.serial && _ie.serial {
+            _if.serial = false;
             self.registers.ime = IME::Disabled;
             _call(self, 0x58);
-        } else if irf.joypad && ire.joypad {
-            println!("joypad");
-            irf.joypad = false;
+        } else if _if.joypad && _ie.joypad {
+            _if.joypad = false;
             self.registers.ime = IME::Disabled;
             _call(self, 0x60);
         }
     }
 
     pub fn next_instruction(&mut self) -> Option<(Mode, Mode)> {
-        match self.registers.ime {
-            IME::Queued => self.registers.ime = IME::Enabled,
-            IME::Enabled => self.handle_interrupts(),
-            _ => {},
+        if self.interrupt_available() {
+            self.handle_interrupts();
         }
 
-        let previous_pc = self.registers.get16(Registers16::PC);
+        if self.registers.ime.queued() {
+            self.registers.ime = IME::Enabled;
+        }
+
+
+        // match self.halted {
+        //     HaltedState::Halted => {
+        //         if self.interrupt_available() {
+        //             self.halted = HaltedState::NoHalt;
+        //             self.handle_interrupts();
+        //         }
+        //     },
+        //     HaltedState::HaltedNoJump => {
+        //         if self.interrupt_available() {
+        //             self.halted = HaltedState::NoHalt;
+        //         }
+        //     },
+        //     HaltedState::HaltBug => {
+        //         // TODO
+        //     },
+        //     HaltedState::NoHalt => {
+        //         if self.interrupt_available() {
+        //             self.handle_interrupts();
+        //         }
+        //     },
+        // }
+
+        // let previous_pc = self.registers.get16(Registers16::PC);
 
         let opcode = self.fetch_opcode();
         let result = self.execute(opcode);
 
-        println!("DEBUG: {:X} - {:?}", previous_pc, result.name);
-        println!("DEBUG: {:?}", self.registers);
+        // println!("DEBUG: {:X} - {:?}", previous_pc, result.name);
+        // println!("DEBUG: {:?}", self.registers);
 
         if self.mmu.timer.advance_cycles(result.cycles) {
             self.mmu.interrupt_flag.timer = true;
@@ -141,7 +176,18 @@ impl CPU {
     }
 
     pub fn halt(&mut self) {
-        self.halted = true;
+        if self.registers.ime.enabled() {
+            self.halted = HaltedState::Halted;
+        } else {
+            let _if = u8::from(self.mmu.interrupt_flag);
+            let _ie = u8::from(self.mmu.interrupt_enable);
+            if (_if & _ie & 0x1F) == 0 {
+                self.halted = HaltedState::HaltedNoJump;
+            } else {
+                self.halted = HaltedState::HaltBug;
+            }
+
+        }
     }
 
     pub fn advance_pc(&mut self) -> u8 {

@@ -2,10 +2,21 @@ use super::bytes;
 use std::fmt;
 use std::fmt::Debug;
 
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum IME {
     Enabled,
     Disabled,
     Queued,
+}
+
+impl IME {
+    pub fn queued(&self) -> bool {
+        self == &IME::Queued
+    }
+
+    pub fn enabled(&self) -> bool {
+        self == &IME::Enabled
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
