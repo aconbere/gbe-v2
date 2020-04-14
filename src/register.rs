@@ -17,6 +17,10 @@ impl IME {
     pub fn enabled(&self) -> bool {
         self == &IME::Enabled
     }
+
+    pub fn flagged_on(&self) -> bool {
+        self == &IME::Queued || self == &IME::Enabled
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -93,7 +93,7 @@ impl CPU {
     fn interrupt_available(&self) -> bool {
         let _if = u8::from(self.mmu.interrupt_flag);
         let _ie = u8::from(self.mmu.interrupt_enable);
-        self.registers.ime.enabled() && (_if & _ie & 0x1F) == 0
+        (_if & _ie & 0x1F) == 0
     }
 
     fn handle_interrupts(&mut self) {
@@ -109,7 +109,6 @@ impl CPU {
             self.registers.ime = IME::Disabled;
             _call(self, 0x48);
         } else if _if.timer && _ie.timer {
-            println!("INT Timer");
             _if.timer = false;
             self.registers.ime = IME::Disabled;
             _call(self, 0x50);
@@ -125,44 +124,39 @@ impl CPU {
     }
 
     pub fn next_instruction(&mut self) -> Option<(Mode, Mode)> {
-        if self.interrupt_available() {
-            self.handle_interrupts();
+        match self.halted {
+            HaltedState::Halted => {
+                if self.interrupt_available() && self.registers.ime.flagged_on() {
+                    self.halted = HaltedState::NoHalt;
+                    self.handle_interrupts();
+                }
+            },
+            HaltedState::HaltedNoJump => {
+                if self.interrupt_available() && self.registers.ime.flagged_on() {
+                    self.halted = HaltedState::NoHalt;
+                }
+            },
+            HaltedState::HaltBug => {
+                // TODO
+            },
+            HaltedState::NoHalt => {
+                if self.registers.ime.enabled () {
+                    self.handle_interrupts();
+                }
+            },
         }
 
         if self.registers.ime.queued() {
             self.registers.ime = IME::Enabled;
         }
 
-
-        // match self.halted {
-        //     HaltedState::Halted => {
-        //         if self.interrupt_available() {
-        //             self.halted = HaltedState::NoHalt;
-        //             self.handle_interrupts();
-        //         }
-        //     },
-        //     HaltedState::HaltedNoJump => {
-        //         if self.interrupt_available() {
-        //             self.halted = HaltedState::NoHalt;
-        //         }
-        //     },
-        //     HaltedState::HaltBug => {
-        //         // TODO
-        //     },
-        //     HaltedState::NoHalt => {
-        //         if self.interrupt_available() {
-        //             self.handle_interrupts();
-        //         }
-        //     },
-        // }
-
-        // let previous_pc = self.registers.get16(Registers16::PC);
+        let previous_pc = self.registers.get16(Registers16::PC);
 
         let opcode = self.fetch_opcode();
         let result = self.execute(opcode);
 
-        // println!("DEBUG: {:X} - {:?}", previous_pc, result.name);
-        // println!("DEBUG: {:?}", self.registers);
+        println!("DEBUG: {:X} - {:?}", previous_pc, result.name);
+        println!("DEBUG: {:?}", self.registers);
 
         if self.mmu.timer.advance_cycles(result.cycles) {
             self.mmu.interrupt_flag.timer = true;
