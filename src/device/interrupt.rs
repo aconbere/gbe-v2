@@ -1,7 +1,15 @@
 use crate::bytes;
 
+pub enum Interrupt {
+    VBlank,
+    LCDStat,
+    Timer,
+    Serial,
+    Joypad,
+}
+
 #[derive(Debug, Clone, Copy)]
-pub struct InterruptEnable {
+pub struct InterruptFlag {
     pub vblank: bool,
     pub lcd_stat: bool,
     pub timer: bool,
@@ -9,9 +17,9 @@ pub struct InterruptEnable {
     pub joypad: bool,
 }
 
-impl InterruptEnable {
-    pub fn new() -> InterruptEnable {
-        InterruptEnable {
+impl InterruptFlag {
+    pub fn new() -> InterruptFlag {
+        InterruptFlag {
             vblank: false,
             lcd_stat: false,
             timer: false,
@@ -21,9 +29,9 @@ impl InterruptEnable {
     }
 }
 
-impl std::convert::From<u8> for InterruptEnable {
+impl std::convert::From<u8> for InterruptFlag {
     fn from(byte: u8) -> Self {
-        InterruptEnable {
+        InterruptFlag {
             vblank: bytes::check_bit(byte, 0),
             lcd_stat: bytes::check_bit(byte, 1),
             timer: bytes::check_bit(byte, 2),
@@ -33,8 +41,8 @@ impl std::convert::From<u8> for InterruptEnable {
     }
 }
 
-impl std::convert::From<InterruptEnable> for u8 {
-    fn from(p: InterruptEnable) -> Self {
+impl std::convert::From<InterruptFlag> for u8 {
+    fn from(p: InterruptFlag) -> Self {
         let mut u:u8 = 0x00;
 
         u = bytes::set_bit(u, 0, p.vblank);

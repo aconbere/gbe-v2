@@ -4,7 +4,7 @@ use crate::cartridge::Cartridge;
 use crate::device::Device;
 use crate::device::ram::{Ram2k, Ram8k, HighRam};
 use crate::device::lcd::LCD;
-use crate::device::interrupt_enable::InterruptEnable;
+use crate::device::interrupt::InterruptFlag;
 use crate::rom::BootRom;
 
 #[derive(Debug, Clone, Copy)]
@@ -133,8 +133,8 @@ pub struct MMU {
     ram: Ram8k,
     high_ram: HighRam,
 
-    pub interrupt_enable: InterruptEnable,
-    pub interrupt_flag: InterruptEnable,
+    pub interrupt_enable: InterruptFlag,
+    pub interrupt_flag: InterruptFlag,
 
     pub lcd: LCD,
     pub gpu: GPU,
@@ -152,8 +152,8 @@ impl MMU {
             io: Ram2k::new(),
             ram: Ram8k::new(),
             high_ram: HighRam::new(),
-            interrupt_enable: InterruptEnable::new(),
-            interrupt_flag: InterruptEnable::new(),
+            interrupt_enable: InterruptFlag::new(),
+            interrupt_flag: InterruptFlag::new(),
 
             lcd: LCD::new(),
             gpu: GPU::new(),
@@ -219,7 +219,7 @@ impl MMU {
                         println!("setting tac: {}", value);
                     },
                     0xFF0F => {
-                        self.interrupt_flag = InterruptEnable::from(value);
+                        self.interrupt_flag = InterruptFlag::from(value);
                     },
                     0xFF40..=0xFF4B => self.lcd.set(address - start, value),
                     0xFF50 => {
@@ -232,7 +232,7 @@ impl MMU {
             }
             (start, DeviceRef::HighRam) => self.high_ram.set(address - start, value),
             (_start, DeviceRef::InterruptEnable) => {
-                self.interrupt_enable = InterruptEnable::from(value)
+                self.interrupt_enable = InterruptFlag::from(value)
             }
             _ => panic!("Set Memory Not implemented: {:X}", address),
         }
