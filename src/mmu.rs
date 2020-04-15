@@ -208,15 +208,12 @@ impl MMU {
                     0xFF04 => self.timer.clock = 0,
                     0xFF05 => {
                         self.timer.tima = value;
-                        println!("setting tima: {}", value);
                     },
                     0xFF06 => {
                         self.timer.tma = value;
-                        println!("setting tma: {}", value);
                     },
                     0xFF07 => {
                         self.timer.tac = TimerControl::from(value);
-                        println!("setting tac: {}", value);
                     },
                     0xFF0F => {
                         self.interrupt_flag = InterruptFlag::from(value);
