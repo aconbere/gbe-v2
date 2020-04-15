@@ -7,7 +7,7 @@ use crate::framebuffer;
 
 mod instructions;
 
-use instructions::{JumpFlag, RstFlag, _call};
+use instructions::{JumpFlag, RstFlag, _call, OpResult};
 
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum HaltedState {
@@ -149,7 +149,6 @@ impl CPU {
 
     pub fn next_instruction(&mut self) -> Option<(Mode, Mode)> {
         if self.halted == HaltedState::Halted {
-            println!("HALTED");
             if self.registers.ime.flagged_on() {
                 self.handle_interrupts();
             }
@@ -158,16 +157,8 @@ impl CPU {
         }
 
         if self.halted == HaltedState::HaltedNoJump {
-            println!("HALTED No Jump");
-            println!("IME: {:?}", self.registers.ime);
-            println!("IF: {:X}", u8::from(self.mmu.interrupt_flag));
-            println!("IE: {:X}", u8::from(self.mmu.interrupt_enable));
 
             if self.interrupt_available().is_some() {
-                println!("UNHALTED");
-                println!("IME: {:?}", self.registers.ime);
-                println!("IF: {:X}", u8::from(self.mmu.interrupt_flag));
-                println!("IE: {:X}", u8::from(self.mmu.interrupt_enable));
                 self.halted = HaltedState::NoHalt;
             }
 
@@ -183,15 +174,19 @@ impl CPU {
             self.registers.ime = IME::Enabled;
         }
 
-        // let previous_pc = self.registers.get16(Registers16::PC);
+        let previous_pc = self.registers.get16(Registers16::PC);
 
         let opcode = self.fetch_opcode();
         let result = self.execute(opcode);
 
-        // println!("DEBUG: {:X} - {:?}", previous_pc, result.name);
-        // println!("DEBUG: {:?}", self.registers);
+        self.print_debug(previous_pc, &result);
 
         self.advance_cycles(result.cycles)
+    }
+
+    fn print_debug(&self, previous_pc: u16, result: &OpResult) {
+        println!("DEBUG: {:X} - {:?}", previous_pc, result.name);
+        println!("DEBUG: {:?}", self.registers);
     }
 
     pub fn advance_cycles(&mut self, cycles: u8) -> Option<(Mode, Mode)> {
@@ -242,7 +237,7 @@ impl CPU {
         bytes::combine_ms_ls(v2, v1)
     }
 
-    pub fn execute(&mut self, opcode: u16) -> instructions::OpResult {
+    pub fn execute(&mut self, opcode: u16) -> OpResult {
         match opcode {
             0x0000 => instructions::nop(self),
             0x0001 => instructions::ld_r16_n16(self, Registers16::BC),
