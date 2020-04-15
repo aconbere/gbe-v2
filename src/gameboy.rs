@@ -11,12 +11,17 @@ pub struct Gameboy {
 }
 
 impl Gameboy {
-    pub fn new(boot_rom: &str, game_rom: &str) -> Result<Gameboy, Error> {
+    pub fn new(
+        boot_rom: &str,
+        game_rom: &str,
+        debug: bool,
+    ) -> Result<Gameboy, Error> {
         let cartridge = Cartridge::read(game_rom)?;
         let boot_rom = BootRom::read(boot_rom)?;
 
         let cpu = CPU::new(
-            MMU::new(boot_rom, cartridge)
+            MMU::new(boot_rom, cartridge),
+            debug,
         );
 
         Ok(Gameboy { cpu: cpu, })

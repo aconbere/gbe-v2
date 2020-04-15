@@ -24,16 +24,18 @@ pub struct CPU {
     pub buffer: framebuffer::Buffer,
     pub stopped: bool,
     pub halted: HaltedState,
+    debug: bool,
 }
 
 impl CPU {
-    pub fn new(mmu: MMU) -> CPU {
+    pub fn new(mmu: MMU, debug: bool) -> CPU {
         CPU {
             mmu: mmu,
             registers: Registers::new(),
             buffer: framebuffer::new(),
             stopped: false,
             halted: HaltedState::NoHalt,
+            debug: debug,
         }
     }
 
@@ -185,8 +187,10 @@ impl CPU {
     }
 
     fn print_debug(&self, previous_pc: u16, result: &OpResult) {
-        println!("DEBUG: {:X} - {:?}", previous_pc, result.name);
-        println!("DEBUG: {:?}", self.registers);
+        if self.debug {
+            println!("DEBUG: {:X} - {:?}", previous_pc, result.name);
+            println!("DEBUG: {:?}", self.registers);
+        }
     }
 
     pub fn advance_cycles(&mut self, cycles: u8) -> Option<(Mode, Mode)> {
