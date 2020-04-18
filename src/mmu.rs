@@ -164,6 +164,42 @@ impl MMU {
         }
     }
 
+    pub fn skip_boot(cartridge: Cartridge) -> MMU {
+        let mut mmu = MMU::new(BootRom::zero(), cartridge);
+        mmu.set(0xFF05, 0x00);
+        mmu.set(0xFF06, 0x00);
+        mmu.set(0xFF07, 0x00);
+        mmu.set(0xFF10, 0x80);
+        mmu.set(0xFF11, 0xBF);
+        mmu.set(0xFF12, 0xF3);
+        mmu.set(0xFF14, 0xBF);
+        mmu.set(0xFF16, 0x3F);
+        mmu.set(0xFF17, 0x00);
+        mmu.set(0xFF19, 0xBF);
+        mmu.set(0xFF1A, 0x7F);
+        mmu.set(0xFF1B, 0xFF);
+        mmu.set(0xFF1C, 0x9F);
+        mmu.set(0xFF1E, 0xBF);
+        mmu.set(0xFF20, 0xFF);
+        mmu.set(0xFF21, 0x00);
+        mmu.set(0xFF22, 0x00);
+        mmu.set(0xFF23, 0xBF);
+        mmu.set(0xFF24, 0x77);
+        mmu.set(0xFF25, 0xF3);
+        mmu.set(0xFF26, 0xF1);
+        mmu.set(0xFF40, 0x91);
+        mmu.set(0xFF42, 0x00);
+        mmu.set(0xFF43, 0x00);
+        mmu.set(0xFF45, 0x00);
+        mmu.set(0xFF47, 0xFC);
+        mmu.set(0xFF48, 0xFF);
+        mmu.set(0xFF49, 0xFF);
+        mmu.set(0xFF4A, 0x00);
+        mmu.set(0xFF4B, 0x00);
+        mmu.set(0xFFFF, 0x00);
+        mmu
+    }
+
     pub fn get(&self, address: u16) -> u8 {
         match self.get_device(address) {
             (start, DeviceRef::BootRom) => self.boot_rom.get(address - start),

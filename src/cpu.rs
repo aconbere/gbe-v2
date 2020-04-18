@@ -28,10 +28,20 @@ pub struct CPU {
 }
 
 impl CPU {
-    pub fn new(mmu: MMU, debug: bool) -> CPU {
+    pub fn new(
+        mmu: MMU,
+        debug: bool,
+        skip_boot: bool
+    ) -> CPU {
+        let r = if skip_boot {
+            Registers::skip_boot()
+        } else {
+            Registers::new()
+        };
+
         CPU {
             mmu: mmu,
-            registers: Registers::new(),
+            registers: r,
             buffer: framebuffer::new(),
             stopped: false,
             halted: HaltedState::NoHalt,

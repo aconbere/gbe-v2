@@ -1246,7 +1246,7 @@ pub fn and_r8_r8(cpu: &mut CPU, r1: Registers8, r2: Registers8) -> OpResult {
     let v = _and(cpu, a, b);
 
     cpu.registers.set8(r1, v);
-    cycles(4, format!("ADD R8 R8 | {:?} {:?}", r1, r2))
+    cycles(4, format!("AND R8 R8 | {:?} {:?}", r1, r2))
 }
 
 pub fn and_r8_ar16(cpu: &mut CPU, r1: Registers8, r2: Registers16) -> OpResult {

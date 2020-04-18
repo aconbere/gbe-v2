@@ -15,13 +15,21 @@ impl Gameboy {
         boot_rom: &str,
         game_rom: &str,
         debug: bool,
+        skip_boot: bool,
     ) -> Result<Gameboy, Error> {
         let cartridge = Cartridge::read(game_rom)?;
         let boot_rom = BootRom::read(boot_rom)?;
 
+        let mmu = if skip_boot {
+            MMU::skip_boot(cartridge)
+        } else {
+            MMU::new(boot_rom, cartridge)
+        };
+
         let cpu = CPU::new(
-            MMU::new(boot_rom, cartridge),
+            mmu,
             debug,
+            skip_boot,
         );
 
         Ok(Gameboy { cpu: cpu, })
