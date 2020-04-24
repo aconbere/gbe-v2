@@ -334,7 +334,7 @@ pub struct OpResult {
     pub cycles: u8,
 }
 
-fn cycles(a: u8, name: String) -> OpResult {
+fn cycles(a: u8, _: String) -> OpResult {
     OpResult {
         cycles: a,
     }
@@ -343,7 +343,7 @@ fn cycles(a: u8, name: String) -> OpResult {
 /* Does nothing, pc advances 1
  */
 pub fn nop() -> IFn {
-    Box::new(move |cpu: &mut CPU| {
+    Box::new(move |_cpu: &mut CPU| {
         cycles(4, String::from("nop"))
     })
 }

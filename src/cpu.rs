@@ -24,13 +24,13 @@ pub struct CPU {
     pub buffer: framebuffer::Buffer,
     pub stopped: bool,
     pub halted: HaltedState,
-    debug: bool,
+    log: bool,
 }
 
 impl CPU {
     pub fn new(
         mmu: MMU,
-        debug: bool,
+        log: bool,
         skip_boot: bool
     ) -> CPU {
         let r = if skip_boot {
@@ -45,7 +45,7 @@ impl CPU {
             buffer: framebuffer::new(),
             stopped: false,
             halted: HaltedState::NoHalt,
-            debug: debug,
+            log: log,
         }
     }
 
@@ -191,13 +191,13 @@ impl CPU {
         let opcode = self.fetch_opcode();
         let result = self.execute(opcode)(self);
 
-        self.print_debug(previous_pc, &result);
+        self.log_debug(previous_pc, &result);
 
         self.advance_cycles(result.cycles)
     }
 
-    fn print_debug(&self, previous_pc: u16, result: &OpResult) {
-        if self.debug {
+    fn log_debug(&self, previous_pc: u16, result: &OpResult) {
+        if self.log {
             // println!("DEBUG: {:X} - {:?}", previous_pc, result.name);
             println!("DEBUG: {:?}", self.registers);
         }

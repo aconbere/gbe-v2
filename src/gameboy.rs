@@ -14,7 +14,7 @@ impl Gameboy {
     pub fn new(
         boot_rom: &str,
         game_rom: &str,
-        debug: bool,
+        log: bool,
         skip_boot: bool,
     ) -> Result<Gameboy, Error> {
         let cartridge = Cartridge::read(game_rom)?;
@@ -28,7 +28,7 @@ impl Gameboy {
 
         let cpu = CPU::new(
             mmu,
-            debug,
+            log,
             skip_boot,
         );
 
