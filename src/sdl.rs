@@ -92,7 +92,6 @@ impl SDL {
                 self.canvas.fill_rect(
                     Rect::new(rx, ry, SCALE, SCALE)
                 ).unwrap();
-
             }
         }
     }
@@ -148,7 +147,6 @@ impl SDL {
                     origin_y + (iy as i32  * 8),
                     tile,
                     cpu);
-
             }
         }
     }

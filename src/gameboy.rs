@@ -5,6 +5,7 @@ use crate::mmu::MMU;
 use crate::cpu::CPU;
 use crate::sdl::SDL;
 use crate::cartridge::Cartridge;
+use crate::repl::Debugger;
 
 pub struct Gameboy {
     pub cpu: CPU,
@@ -39,4 +40,9 @@ impl Gameboy {
         let mut sdl = SDL::new().unwrap();
         sdl.start(&mut self.cpu);
     }
+
+    // pub fn start_debugger(&mut self) {
+    //     let mut debugger = Debugger::new();
+    //     debugger.start(&mut self.cpu);
+    // }
 }

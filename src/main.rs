@@ -17,6 +17,7 @@ mod device;
 mod rom;
 mod helpers;
 mod cartridge;
+mod repl;
 
 use gameboy::Gameboy;
 
@@ -28,6 +29,7 @@ fn main() {
         (@arg BOOT_ROM: --boot_rom +takes_value +required "The file of the boot rom to load.")
         (@arg GAME_ROM: --game_rom +takes_value +required "The file of the game rom to load.")
         (@arg LOG: --log "If true print debug output.")
+        (@arg DEBUG: --debug "If true starts the debugger.")
         (@arg SKIP_BOOT: --skip_boot "If true skips booting from the rom.")
         (@arg CONFIG: --config +takes_value "An optional configuration file to read.")
     ).get_matches();
@@ -39,6 +41,9 @@ fn main() {
         matches.is_present("SKIP_BOOT"),
     ).unwrap();
 
-    gameboy.start_sdl();
-
+    if matches.is_present("DEBUG") {
+        //gameboy.start_debugger();
+    } else {
+        gameboy.start_sdl();
+    }
 }

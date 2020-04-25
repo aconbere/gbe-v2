@@ -2,6 +2,8 @@ use std::io;
 use std::io::{BufRead, Error, ErrorKind, stdout, Write};
 use std::str::SplitWhitespace;
 
+use crate::cpu::CPU;
+
 /// # Mini Debugger Language
 ///
 /// ## break <a16>
@@ -245,12 +247,12 @@ pub enum Output {
     Unit,
 }
 
-struct Debugger {
+pub struct Debugger {
     break_points: Vec<u16>,
 }
 
 impl Debugger {
-    pub fn new() -> Debugger {
+    pub fn new(cpu: &mut CPU) -> Debugger {
         Debugger {
             break_points: Vec::new(),
         }
@@ -363,12 +365,12 @@ impl Debugger {
     }
 }
 
-fn main() {
+fn start(cpu: &mut CPU) {
     let stdin = io::stdin();
 
     let mut input_handle = stdin.lock();
     let mut output_handle = stdout();
-    let mut debugger = Debugger::new();
+    let mut debugger = Debugger::new(cpu);
 
     loop {
         output_handle.write(prompt().as_bytes()).unwrap();
