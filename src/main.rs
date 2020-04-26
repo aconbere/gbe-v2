@@ -21,6 +21,7 @@ mod rom;
 mod helpers;
 mod cartridge;
 mod msg;
+mod instruction;
 
 use gameboy::Gameboy;
 
