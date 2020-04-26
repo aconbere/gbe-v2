@@ -49,7 +49,7 @@ fn main() {
 
         loop {
             gameboy.next_frame();
-	    erintln!("next frame loop: end");
+	    println!("next frame loop: end");
         }
     });
 
