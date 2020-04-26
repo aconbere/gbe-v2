@@ -20,5 +20,5 @@ popd
 cargo run -- \
   --boot_rom ../gb_test_roms/DMG_ROM.bin \
   --game_rom ../blarggs-tests/cpu_instrs/source/test.gb \
-  --skip_boot \
+  # --skip_boot \
   $1

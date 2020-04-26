@@ -28,11 +28,11 @@ pub struct SDL {
     state: State,
     canvas: Canvas<Window>,
     sdl_context: sdl2::Sdl,
-    frames_channel: Receiver<Frame>,
+    frames_channel: Receiver<Box<Frame>>,
 }
 
 impl SDL {
-    pub fn new(frames_channel: Receiver<Frame>) -> anyhow::Result<SDL> {
+    pub fn new(frames_channel: Receiver<Box<Frame>>) -> anyhow::Result<SDL> {
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
 
@@ -117,8 +117,8 @@ impl SDL {
     }
 
     fn draw_tiles(&mut self, origin_x: i32, origin_y: i32, tiles: [[Shade; 256];96]) {
-        for y in 0..256 {
-            for x in 0..96 {
+        for y in 0..96 {
+            for x in 0..256 {
                 let shade = tiles[y][x];
                 self.set_draw_color(shade);
 
@@ -166,9 +166,7 @@ impl SDL {
         'mainloop: loop {
             match self.state {
                 State::Running => {
-                    println!("blocking on receive");
                     let frame = self.frames_channel.recv().unwrap();
-                    println!("received");
 
                     self.draw_frame(0,0, frame.main);
                     self.draw_tile_map(160*SCALE as i32, 0, frame.tile_map);
