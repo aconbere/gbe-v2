@@ -6,6 +6,8 @@ use crate::cpu::CPU;
 use crate::cartridge::Cartridge;
 use crate::msg::{Frame, TileMap};
 use crate::shade::Shade;
+use crate::tile::Tile;
+use crate::palette::Palette;
 
 use std::sync::mpsc::SyncSender;
 
@@ -52,8 +54,25 @@ impl Gameboy {
         }
     }
 
-    pub fn draw_tiles(&self) -> [[Shade; 256]; 96] {
-        [[Shade::White;256];96]
+    fn draw_tiles(&self) -> [[Shade;256];96] {
+        let mut buffer = [[Shade::White;256];96];
+
+        // 12 rows of tiles
+        for iy in 0..12 {
+            // read across for 32 tiles per row (256 pixels)
+            for ix in 0..32 {
+                let tile_index = (iy * 32) + ix;
+                let tile = self.cpu.mmu.gpu.vram.tile_set[tile_index];
+                draw_tile(
+                    &mut buffer,
+                    ix * 8,
+                    iy * 8,
+                    tile,
+                    self.cpu.mmu.lcd.bg_palette,
+                );
+            }
+        }
+        buffer
     }
 
     pub fn send_frame(&mut self) {
@@ -69,5 +88,15 @@ impl Gameboy {
     pub fn next_frame(&mut self) {
         self.cpu.next_frame();
         self.send_frame();
+    }
+}
+
+fn draw_tile(buffer: &mut [[Shade;256];96], origin_x: usize, origin_y: usize, tile: Tile, palette: Palette) {
+    for y in 0..8 as usize {
+        for x in 0..8 as usize {
+            let pixel = tile.data[y][x];
+            let shade = palette.map(pixel);
+            buffer[origin_y + y][origin_x + x] = shade;
+        }
     }
 }

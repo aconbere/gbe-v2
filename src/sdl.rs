@@ -129,36 +129,6 @@ impl SDL {
         }
     }
 
-    // fn draw_tiles(&mut self, origin_x: i32, origin_y: i32, cpu: CPU) {
-    //     // 12 rows of tiles
-    //     for iy in 0..12 {
-    //         // read across for 32 tiles per row (256 pixels)
-    //         for ix in 0..32 {
-    //             let tile_index = (iy * 32) + ix;
-    //             let tile = cpu.mmu.gpu.vram.tile_set[tile_index];
-    //             self.draw_tile(
-    //                 origin_x + (ix as i32 * 8),
-    //                 origin_y + (iy as i32  * 8),
-    //                 tile,
-    //                 cpu);
-
-    //         }
-    //     }
-    // }
-
-    // fn draw_tile(&mut self, origin_x: i32, origin_y: i32, tile: Tile, cpu: &CPU) {
-    //     for y in 0..8 as usize {
-    //         for x in 0..8 as usize {
-    //             let pixel = tile.data[y][x];
-    //             let shade = cpu.mmu.lcd.bg_palette.map(pixel);
-    //             self.set_draw_color(shade);
-
-    //             self.canvas.draw_point(
-    //                 Point::new(x as i32 + origin_x, y as i32 + origin_y)
-    //             ).unwrap();
-    //         }
-    //     }
-    // }
 
     pub fn start(&mut self) {
         let mut rate_limiter = RateLimiter::new(60);

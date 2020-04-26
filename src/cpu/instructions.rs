@@ -7,6 +7,17 @@ use crate::cpu::CPU;
 pub type IFn = Box<dyn FnMut(&mut CPU) -> OpResult>;
 
 struct Instruction {
+    f: IFn,
+    description: String
+}
+
+impl Instruction {
+    pub fn new(f: IFn, description: String) -> Instruction {
+        Instruction {
+            f: f,
+            description: description,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -338,6 +349,12 @@ fn cycles(a: u8, _: String) -> OpResult {
     OpResult {
         cycles: a,
     }
+}
+
+pub fn invalid() -> IFn {
+    Box::new(move |_cpu: &mut CPU| {
+        panic!("Invalid instruction");
+    })
 }
 
 /* Does nothing, pc advances 1
@@ -2065,3 +2082,13 @@ mod tests {
     }
 }
 
+// pub fn build_instructions() -> Vec<Instruction> {
+//     let invalid = Instruction::new(invalid(), String::from("Invalid Instruction"));
+// 
+//     let mut instructions = vec![invalid; 512];
+// 
+//     instructions[0] = Instruction::new(nop(), String::from("NOP"));
+// 
+// 
+//     Vec::new()
+// }

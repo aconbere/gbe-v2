@@ -36,7 +36,7 @@ fn main() {
         (@arg CONFIG: --config +takes_value "An optional configuration file to read.")
     ).get_matches();
 
-    let (sender, receiver) = sync_channel(1);
+    let (sender, receiver) = sync_channel(0);
 
     thread::spawn(move || {
         let mut gameboy = Gameboy::new(
@@ -49,7 +49,6 @@ fn main() {
 
         loop {
             gameboy.next_frame();
-	    println!("next frame loop: end");
         }
     });
 
