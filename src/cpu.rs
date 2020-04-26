@@ -67,7 +67,9 @@ impl CPU {
 
 
     pub fn next_frame(&mut self) {
+        println!("cpu: next frame");
         loop {
+            // println!("cpu: next frame instruction loop");
             match self.next_instruction() {
                 Some((Mode::VBlank, Mode::OAM)) => {
                     self.mmu.interrupt_flag.vblank = true;

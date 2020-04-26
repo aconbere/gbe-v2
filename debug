@@ -1,0 +1,1 @@
+rust-lldb -- ./target/debug/gameboy-emulator-v2 --boot_rom ../boot_roms/dmg_boot.bin --game_rom ../blarggs-tests/cpu_instrs/source/test.gb --skip_boot

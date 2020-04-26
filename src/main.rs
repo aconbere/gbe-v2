@@ -1,6 +1,9 @@
 #[macro_use]
 extern crate clap;
 
+use std::sync::mpsc::sync_channel;
+use std::thread;
+
 mod sdl;
 mod gameboy;
 mod framebuffer;
@@ -17,6 +20,7 @@ mod device;
 mod rom;
 mod helpers;
 mod cartridge;
+mod msg;
 
 use gameboy::Gameboy;
 
@@ -32,13 +36,23 @@ fn main() {
         (@arg CONFIG: --config +takes_value "An optional configuration file to read.")
     ).get_matches();
 
-    let mut gameboy = Gameboy::new(
-        matches.value_of("BOOT_ROM").unwrap(),
-        matches.value_of("GAME_ROM").unwrap(),
-        matches.is_present("LOG"),
-        matches.is_present("SKIP_BOOT"),
-    ).unwrap();
+    let (sender, receiver) = sync_channel(1);
 
-    gameboy.start_sdl();
+    thread::spawn(move || {
+        let mut gameboy = Gameboy::new(
+            matches.value_of("BOOT_ROM").unwrap(),
+            matches.value_of("GAME_ROM").unwrap(),
+            matches.is_present("LOG"),
+            matches.is_present("SKIP_BOOT"),
+            sender,
+        ).unwrap();
 
+        loop {
+            gameboy.next_frame();
+	    erintln!("next frame loop: end");
+        }
+    });
+
+    let mut display = sdl::SDL::new(receiver).unwrap();
+    display.start();
 }
