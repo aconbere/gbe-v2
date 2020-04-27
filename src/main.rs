@@ -43,7 +43,6 @@ fn main() {
         let mut gameboy = Gameboy::new(
             matches.value_of("BOOT_ROM").unwrap(),
             matches.value_of("GAME_ROM").unwrap(),
-            matches.is_present("LOG"),
             matches.is_present("SKIP_BOOT"),
             sender,
         ).unwrap();

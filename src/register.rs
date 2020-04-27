@@ -3,6 +3,14 @@ use std::fmt;
 use std::fmt::Debug;
 
 #[derive(PartialEq, Debug, Clone, Copy)]
+pub enum HaltedState {
+    Halted,
+    HaltedNoJump,
+    HaltBug,
+    None
+}
+
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum IME {
     Enabled,
     Disabled,
@@ -93,7 +101,7 @@ pub struct Registers {
     pc: u16,
     pub ime: IME,
     pub stopped: bool,
-    pub halted: bool,
+    pub halted: HaltedState,
 }
 
 impl Registers {
@@ -111,7 +119,7 @@ impl Registers {
             pc: 0x0000,
             ime: IME::Disabled,
             stopped: false,
-            halted: false
+            halted: HaltedState::None
         };
     }
 
@@ -129,7 +137,7 @@ impl Registers {
             pc: 0x0100,
             ime: IME::Disabled,
             stopped: false,
-            halted: false
+            halted: HaltedState::None
         };
     }
 

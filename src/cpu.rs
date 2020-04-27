@@ -1,51 +1,139 @@
-use crate::register::{Registers, Registers16, IME};
+use crate::shade::Shade;
+use crate::msg::{Frame, TileMap};
+use crate::register::{Registers, Registers16, IME, HaltedState};
 use crate::mmu::MMU;
 use crate::bytes;
 use crate::device::lcd::Mode;
 use crate::device::interrupt::Interrupt;
 use crate::framebuffer;
+use crate::tile::Tile;
+use crate::palette::Palette;
 
 use crate::instruction::opcode;
 use crate::instruction::helper::call;
 
-
-#[derive(PartialEq, Debug, Clone, Copy)]
-pub enum HaltedState {
-    Halted,
-    HaltedNoJump,
-    HaltBug,
-    NoHalt
+pub struct CPUManager {
+    instructions: opcode::Fetcher,
+    cpu: CPU,
 }
+
+impl CPUManager {
+    pub fn new(rs: Registers, mmu: MMU) -> CPUManager {
+        CPUManager {
+            instructions: opcode::Fetcher::new(),
+            cpu: CPU::new(rs, mmu),
+        }
+    }
+
+    pub fn frame_info(&self) -> Box<Frame> {
+        Box::new(Frame {
+            main: self.cpu.buffer,
+            tiles: self.draw_tiles(),
+            tile_map: self.draw_tile_map(),
+        })
+    }
+
+    pub fn draw_tile_map(&self) -> TileMap {
+        TileMap {
+            palette: self.cpu.mmu.lcd.bg_palette,
+            pixels: self.cpu.mmu.gpu.buffer,
+            scroll_x: self.cpu.mmu.lcd.scroll_x,
+            scroll_y: self.cpu.mmu.lcd.scroll_y,
+        }
+    }
+
+    fn draw_tiles(&self) -> [[Shade;256];96] {
+        let mut buffer = [[Shade::White;256];96];
+
+        // 12 rows of tiles
+        for iy in 0..12 {
+            // read across for 32 tiles per row (256 pixels)
+            for ix in 0..32 {
+                let tile_index = (iy * 32) + ix;
+                let tile = self.cpu.mmu.gpu.vram.tile_set[tile_index];
+                draw_tile(
+                    &mut buffer,
+                    ix * 8,
+                    iy * 8,
+                    tile,
+                    self.cpu.mmu.lcd.bg_palette,
+                );
+            }
+        }
+        buffer
+    }
+
+    pub fn next_frame(&mut self) {
+        loop {
+            match self.next_instruction() {
+                Some((Mode::VBlank, Mode::OAM)) => {
+                    self.cpu.mmu.interrupt_flag.vblank = true;
+                    break;
+                },
+                Some((Mode::VRAM, Mode::HBlank)) => {
+                    self.cpu.render_line();
+                },
+                Some((Mode::HBlank, Mode::VBlank)) => {
+                    self.cpu.mmu.gpu.update_buffer();
+                }
+                _ => {},
+            }
+        }
+    }
+
+    pub fn next_instruction(&mut self) -> Option<(Mode, Mode)> {
+        if self.cpu.registers.halted == HaltedState::Halted {
+            if self.cpu.registers.ime.flagged_on() {
+                self.cpu.handle_interrupts();
+            }
+            self.cpu.advance_cycles(4);
+            return None
+        }
+
+        if self.cpu.registers.halted == HaltedState::HaltedNoJump {
+            if self.cpu.interrupt_available().is_some() {
+                self.cpu.registers.halted = HaltedState::None;
+            }
+
+            self.cpu.advance_cycles(4);
+            return None
+        }
+
+        if self.cpu.registers.ime.enabled () {
+            self.cpu.handle_interrupts();
+        }
+
+        if self.cpu.registers.ime.queued() {
+            self.cpu.registers.ime = IME::Enabled;
+        }
+
+
+        let opcode = self.cpu.get_opcode();
+        let instruction = self.instructions.fetch(opcode).unwrap();
+        let result = instruction.call(&mut self.cpu);
+        self.cpu.advance_cycles(result.cycles)
+    }
+}
+
+
 
 pub struct CPU {
     pub mmu: MMU,
     pub registers: Registers,
 
     pub buffer: framebuffer::Buffer,
-    pub stopped: bool,
-    pub halted: HaltedState,
-    log: bool,
 }
 
 impl CPU {
     pub fn new(
+        registers: Registers,
         mmu: MMU,
-        log: bool,
-        skip_boot: bool
     ) -> CPU {
-        let r = if skip_boot {
-            Registers::skip_boot()
-        } else {
-            Registers::new()
-        };
 
         CPU {
             mmu: mmu,
-            registers: r,
+            registers: registers,
             buffer: framebuffer::new(),
-            stopped: false,
-            halted: HaltedState::NoHalt,
-            log: log,
         }
     }
 
@@ -65,27 +153,6 @@ impl CPU {
         }
     }
 
-
-    pub fn next_frame(&mut self) {
-        loop {
-            // println!("cpu: next frame instruction loop");
-            match self.next_instruction() {
-                Some((Mode::VBlank, Mode::OAM)) => {
-                    self.mmu.interrupt_flag.vblank = true;
-                    break;
-                },
-                Some((Mode::VRAM, Mode::HBlank)) => self.render_line(),
-                Some((Mode::HBlank, Mode::VBlank)) => self.mmu.gpu.update_buffer(),
-                _ => {},
-            }
-
-            /* If we triggered a stop or halt exist this loop */
-            // if self.stopped || self.halted {
-            //     break;
-            // }
-        }
-    }
-
     pub fn get_opcode(&mut self) -> u16 {
         let opcode = self.advance_pc() as u16;
 
@@ -94,7 +161,7 @@ impl CPU {
          * the Prefixed opcodes with the byte prefix CB 
          */
         if opcode == 0x00CB {
-            (self.advance_pc() as u16) | 0xCB00
+            (self.advance_pc() as u16) | 0x0100
         } else {
             opcode
         }
@@ -128,31 +195,31 @@ impl CPU {
         match self.interrupt_available() {
             Some(Interrupt::VBlank) => {
                 self.mmu.interrupt_flag.vblank = false;
-                self.halted = HaltedState::NoHalt;
+                self.registers.halted = HaltedState::None;
                 self.registers.ime = IME::Disabled;
                 call(self, 0x40);
             }
             Some(Interrupt::LCDStat) => {
                 self.mmu.interrupt_flag.lcd_stat = false;
-                self.halted = HaltedState::NoHalt;
+                self.registers.halted = HaltedState::None;
                 self.registers.ime = IME::Disabled;
                 call(self, 0x48);
             }
             Some(Interrupt::Timer) => {
                 self.mmu.interrupt_flag.timer = false;
-                self.halted = HaltedState::NoHalt;
+                self.registers.halted = HaltedState::None;
                 self.registers.ime = IME::Disabled;
                 call(self, 0x50);
             }
             Some(Interrupt::Serial) => {
                 self.mmu.interrupt_flag.serial = false;
-                self.halted = HaltedState::NoHalt;
+                self.registers.halted = HaltedState::None;
                 self.registers.ime = IME::Disabled;
                 call(self, 0x58);
             }
             Some(Interrupt::Joypad) => {
                 self.mmu.interrupt_flag.joypad = false;
-                self.halted = HaltedState::NoHalt;
+                self.registers.halted = HaltedState::None;
                 self.registers.ime = IME::Disabled;
                 call(self, 0x60);
             }
@@ -160,46 +227,12 @@ impl CPU {
         }
     }
 
-    pub fn next_instruction(&mut self) -> Option<(Mode, Mode)> {
-        if self.halted == HaltedState::Halted {
-            if self.registers.ime.flagged_on() {
-                self.handle_interrupts();
-            }
-            self.advance_cycles(4);
-            return None
-        }
-
-        if self.halted == HaltedState::HaltedNoJump {
-            if self.interrupt_available().is_some() {
-                self.halted = HaltedState::NoHalt;
-            }
-
-            self.advance_cycles(4);
-            return None
-        }
-
-        if self.registers.ime.enabled () {
-            self.handle_interrupts();
-        }
-
-        if self.registers.ime.queued() {
-            self.registers.ime = IME::Enabled;
-        }
-
-
-        let opcode = self.get_opcode();
-        let fetcher = opcode::Fetcher::new();
-        let instruction = fetcher.fetch(opcode).unwrap();
-        let result = instruction.call(self);
-        self.advance_cycles(result.cycles)
-    }
-
     pub fn advance_cycles(&mut self, cycles: u8) -> Option<(Mode, Mode)> {
         if self.mmu.timer.advance_cycles(cycles) {
             self.mmu.interrupt_flag.timer = true;
         }
 
-        if self.halted == HaltedState::NoHalt {
+        if self.registers.halted == HaltedState::None {
             self.mmu.lcd.advance_cycles(cycles)
         } else {
             None
@@ -208,19 +241,19 @@ impl CPU {
     }
 
     pub fn stop(&mut self) {
-        self.stopped = true;
+        self.registers.stopped = true;
     }
 
     pub fn halt(&mut self) {
         if self.registers.ime.enabled() {
-            self.halted = HaltedState::Halted;
+            self.registers.halted = HaltedState::Halted;
         } else {
             let _if = u8::from(self.mmu.interrupt_flag);
             let _ie = u8::from(self.mmu.interrupt_enable);
             if (_if & _ie & 0x1F) == 0 {
-                self.halted = HaltedState::HaltedNoJump;
+                self.registers.halted = HaltedState::HaltedNoJump;
             } else {
-                self.halted = HaltedState::HaltBug;
+                self.registers.halted = HaltedState::HaltBug;
             }
 
         }
@@ -241,6 +274,14 @@ impl CPU {
         let v2 = self.advance_pc();
         bytes::combine_ms_ls(v2, v1)
     }
-
 }
 
+fn draw_tile(buffer: &mut [[Shade;256];96], origin_x: usize, origin_y: usize, tile: Tile, palette: Palette) {
+    for y in 0..8 as usize {
+        for x in 0..8 as usize {
+            let pixel = tile.data[y][x];
+            let shade = palette.map(pixel);
+            buffer[origin_y + y][origin_x + x] = shade;
+        }
+    }
+}
