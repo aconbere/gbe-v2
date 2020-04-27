@@ -92,6 +92,8 @@ pub struct Registers {
     sp: u16,
     pc: u16,
     pub ime: IME,
+    pub stopped: bool,
+    pub halted: bool,
 }
 
 impl Registers {
@@ -108,6 +110,8 @@ impl Registers {
             sp: 0xFFFE,
             pc: 0x0000,
             ime: IME::Disabled,
+            stopped: false,
+            halted: false
         };
     }
 
@@ -124,6 +128,8 @@ impl Registers {
             sp: 0xFFFE,
             pc: 0x0100,
             ime: IME::Disabled,
+            stopped: false,
+            halted: false
         };
     }
 

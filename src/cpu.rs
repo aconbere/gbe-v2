@@ -5,7 +5,7 @@ use crate::device::lcd::Mode;
 use crate::device::interrupt::Interrupt;
 use crate::framebuffer;
 
-use crate::instruction::opcode::fetch;
+use crate::instruction::opcode;
 use crate::instruction::helper::call;
 
 
@@ -86,7 +86,7 @@ impl CPU {
         }
     }
 
-    pub fn fetch_opcode(&mut self) -> u16{
+    pub fn get_opcode(&mut self) -> u16 {
         let opcode = self.advance_pc() as u16;
 
         /* the gameboy has two opcode spaces, the second space
@@ -170,7 +170,6 @@ impl CPU {
         }
 
         if self.halted == HaltedState::HaltedNoJump {
-
             if self.interrupt_available().is_some() {
                 self.halted = HaltedState::NoHalt;
             }
@@ -187,9 +186,11 @@ impl CPU {
             self.registers.ime = IME::Enabled;
         }
 
-        let opcode = self.fetch_opcode();
-        let result = fetch(opcode)(self);
 
+        let opcode = self.get_opcode();
+        let fetcher = opcode::Fetcher::new();
+        let instruction = fetcher.fetch(opcode).unwrap();
+        let result = instruction.call(self);
         self.advance_cycles(result.cycles)
     }
 
