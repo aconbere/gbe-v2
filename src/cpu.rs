@@ -110,6 +110,7 @@ impl CPUManager {
 
         let opcode = self.cpu.get_opcode();
         let instruction = self.instructions.fetch(opcode).unwrap();
+        println!("Instruction: {}", instruction.description);
         let result = instruction.call(&mut self.cpu);
         self.cpu.advance_cycles(result.cycles)
     }
