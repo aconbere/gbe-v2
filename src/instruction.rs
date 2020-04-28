@@ -25,7 +25,7 @@ impl Instruction {
     }
 
     pub fn no_args(description: String, f: IFn) -> Instruction {
-        Instruction::new(description.to_string(), 1, f)
+        Instruction::new(description.to_string(), 0, f)
     }
 
     pub fn arg8(description: String, f: IFn) -> Instruction {
@@ -36,12 +36,12 @@ impl Instruction {
         Instruction::new(description.to_string(), 2, f)
     }
 
-    pub fn call(&self, cpu: &mut CPU) -> OpResult {
-        (self.f)(cpu)
+    pub fn call(&self, cpu: &mut CPU, arg: u16) -> OpResult {
+        (self.f)(cpu, arg)
     }
 }
 
-pub type IFn = Box<dyn Fn(&mut CPU) -> OpResult>;
+pub type IFn = Box<dyn Fn(&mut CPU, u16) -> OpResult>;
 
 #[derive(Debug, Clone, Copy)]
 pub enum RstFlag {
@@ -79,7 +79,7 @@ fn cycles(a: u8) -> OpResult {
 pub fn nop() -> Instruction {
     Instruction::no_args(
         String::from("NOP"), 
-        Box::new(move |_cpu: &mut CPU| {
+        Box::new(move |_cpu: &mut CPU, _arg: u16| {
             cycles(4)
         }))
 }
@@ -92,7 +92,7 @@ pub fn nop() -> Instruction {
 pub fn dec_r8(r:Registers8) -> Instruction {
     Instruction::no_args(
         format!("DEC R8: {:?}", r), 
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let i = cpu.registers.get8(r);
 
             let v = i.wrapping_sub(1);
@@ -112,7 +112,7 @@ pub fn dec_r8(r:Registers8) -> Instruction {
 pub fn dec_r16(r: Registers16) -> Instruction {
     Instruction::no_args(
         format!("DEC R16: {:?}", r), 
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let i = cpu.registers.get16(r);
 
             let v = i.wrapping_sub(1);
@@ -128,7 +128,7 @@ pub fn dec_r16(r: Registers16) -> Instruction {
 pub fn dec_ar16(r:Registers16) -> Instruction {
     Instruction::no_args(
         format!("DEC AR16: {:?}", r), 
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let address = cpu.registers.get16(r);
             let i = cpu.mmu.get(address);
 
@@ -150,7 +150,7 @@ pub fn dec_ar16(r:Registers16) -> Instruction {
 pub fn inc_r8(r: Registers8) -> Instruction {
     Instruction::no_args(
         format!("INC R8: {:?}", r), 
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let i = cpu.registers.get8(r);
             let v = i.wrapping_add(1);
 
@@ -169,7 +169,7 @@ pub fn inc_r8(r: Registers8) -> Instruction {
 pub fn inc_r16(r: Registers16) -> Instruction {
     Instruction::no_args(
         format!("INC R16: {:?}", r), 
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let i = cpu.registers.get16(r);
             let v = i.wrapping_add(1);
 
@@ -186,7 +186,7 @@ pub fn inc_r16(r: Registers16) -> Instruction {
 pub fn inc_ar16(r:Registers16) -> Instruction {
     Instruction::no_args(
         format!("INC AR16: {:?}", r), 
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let address = cpu.registers.get16(r);
             let i = cpu.mmu.get(address);
             let v = i.wrapping_add(1);
@@ -210,7 +210,7 @@ pub fn inc_ar16(r:Registers16) -> Instruction {
 pub fn ld_ar16_r8(r1: Registers16, r2: Registers8) -> Instruction {
     Instruction::no_args(
         format!("LD AR16 R8 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let address = cpu.registers.get16(r1);
             let value = cpu.registers.get8(r2);
             cpu.mmu.set(address, value);
@@ -222,12 +222,11 @@ pub fn ld_ar16_r8(r1: Registers16, r2: Registers8) -> Instruction {
 /* Loads a 8 bit immediate value into the memory addressed by r
  */
 pub fn ld_ar16_n8(r: Registers16) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg8(
         format!("LD AR16 N8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, arg: u16| {
             let address = cpu.registers.get16(r);
-            let value = cpu.fetch_arg_8();
-            cpu.mmu.set(address, value);
+            cpu.mmu.set(address, arg as u8);
             cycles(12)
         }))
 }
@@ -237,7 +236,7 @@ pub fn ld_ar16_n8(r: Registers16) -> Instruction {
 pub fn ld_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
     Instruction::no_args(
         format!("LD R8 AR16 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let address = cpu.registers.get16(r2);
             let value = cpu.mmu.get(address);
             cpu.registers.set8(r1, value);
@@ -248,11 +247,10 @@ pub fn ld_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
 /* Loads a 8 bit value from the memory addressed by a 16 bit immediate value into r1
  */
 pub fn ld_r8_an16(r: Registers8) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg16(
         format!("LD R8 AN16 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
-            let address = cpu.fetch_arg_16();
-            let value = cpu.mmu.get(address);
+        Box::new(move |cpu: &mut CPU, arg: u16| {
+            let value = cpu.mmu.get(arg);
             cpu.registers.set8(r, value);
             cycles(16)
         }))
@@ -264,7 +262,7 @@ pub fn ld_r8_an16(r: Registers8) -> Instruction {
 pub fn ldi_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
     Instruction::no_args(
         format!("LDI R8 AR16 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let address = cpu.registers.get16(r2);
             let value = cpu.mmu.get(address);
 
@@ -281,7 +279,7 @@ pub fn ldi_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
 pub fn ldd_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
     Instruction::no_args(
         format!("LDD R7 AR16 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let address = cpu.registers.get16(r2);
             let value = cpu.mmu.get(address);
 
@@ -297,7 +295,7 @@ pub fn ldd_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
 pub fn ldi_ar16_r8(r1: Registers16, r2: Registers8) -> Instruction {
     Instruction::no_args(
         format!("LDI AR16 R8 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let address = cpu.registers.get16(r1);
             let value = cpu.registers.get8(r2);
 
@@ -314,7 +312,7 @@ pub fn ldi_ar16_r8(r1: Registers16, r2: Registers8) -> Instruction {
 pub fn ldd_ar16_r8(r1: Registers16, r2: Registers8) -> Instruction {
     Instruction::no_args(
         format!("LDD AR16 R8 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let address = cpu.registers.get16(r1);
             let value = cpu.registers.get8(r2);
 
@@ -327,11 +325,10 @@ pub fn ldd_ar16_r8(r1: Registers16, r2: Registers8) -> Instruction {
 /* Loads a 8 bit immediate value into r
  */
 pub fn ld_r8_n8(r: Registers8) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg8(
         format!("LD R8 N8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
-            let value = cpu.fetch_arg_8();
-            cpu.registers.set8(r, value);
+        Box::new(move |cpu: &mut CPU, arg: u16| {
+            cpu.registers.set8(r, arg as u8);
             cycles(8)
         }))
 }
@@ -341,7 +338,7 @@ pub fn ld_r8_n8(r: Registers8) -> Instruction {
 pub fn ld_r8_r8(r1: Registers8, r2: Registers8) -> Instruction {
     Instruction::no_args(
         format!("LD R8 R8 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let value = cpu.registers.get8(r2);
             cpu.registers.set8(r1, value);
             cycles(4)
@@ -351,12 +348,11 @@ pub fn ld_r8_r8(r1: Registers8, r2: Registers8) -> Instruction {
 /* Loads a 16 bit value from r into the the memory addressed by a 16 bit immediate value
  */
 pub fn ld_an16_r16(r: Registers16) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg16(
         format!("LD AN16 R16 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, arg: u16| {
             let value = cpu.registers.get16(r);
-            let address = cpu.fetch_arg_16();
-            cpu.mmu.set16(address, value);
+            cpu.mmu.set16(arg, value);
             cycles(20)
         }))
 }
@@ -364,12 +360,11 @@ pub fn ld_an16_r16(r: Registers16) -> Instruction {
 /* Loads an 8 bit value from r into the the memory addressed by a 16 bit immediate value 
  */
 pub fn ld_an16_r8(r: Registers8) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg16(
         format!("LD AN16 R8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, arg: u16| {
             let value = cpu.registers.get8(r);
-            let address = cpu.fetch_arg_16();
-            cpu.mmu.set(address, value);
+            cpu.mmu.set(arg, value);
             cycles(16)
         }))
 }
@@ -377,11 +372,10 @@ pub fn ld_an16_r8(r: Registers8) -> Instruction {
 /* Loads a 16 bit value from args into the register r
  */
 pub fn ld_r16_n16(r: Registers16) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg16(
         format!("LD R16 N16 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
-            let value = cpu.fetch_arg_16();
-            cpu.registers.set16(r, value);
+        Box::new(move |cpu: &mut CPU, arg: u16| {
+            cpu.registers.set16(r, arg);
             cycles(12)
         }))
 }
@@ -391,7 +385,7 @@ pub fn ld_r16_n16(r: Registers16) -> Instruction {
 pub fn ld_r16_r16(r1: Registers16, r2: Registers16) -> Instruction {
     Instruction::no_args(
         format!("LD R16 R16 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let value = cpu.registers.get16(r1);
             cpu.registers.set16(r2, value);
             cycles(12)
@@ -399,13 +393,11 @@ pub fn ld_r16_r16(r1: Registers16, r2: Registers16) -> Instruction {
 }
 
 pub fn ld_r16_spn8(r: Registers16) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg8(
         format!("LD R16 SPN8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, arg: u16| {
             let a = cpu.registers.get16(Registers16::SP);
-            let b = cpu.fetch_arg_8();
-
-            let v = helper::add_u16_i8(cpu, a, b);
+            let v = helper::add_u16_i8(cpu, a, arg as u8);
 
             cpu.registers.set16(r, v);
 
@@ -416,22 +408,20 @@ pub fn ld_r16_spn8(r: Registers16) -> Instruction {
 /* Loads an 8 bit value from r value into the memory at FF00 + an
  */
 pub fn ldh_an8_r8(r: Registers8) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg8(
         format!("LDH AN8 R8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, arg: u16| {
             let v = cpu.registers.get8(r);
-            let an = cpu.fetch_arg_8() as u16;
-            cpu.mmu.set(0xFF00 + an, v);
+            cpu.mmu.set(0xFF00 + arg, v);
             cycles(12)
         }))
 }
 
 pub fn ldh_r8_an8(r: Registers8) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg8(
         format!("LDH R8 AN8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
-            let an = cpu.fetch_arg_8() as u16;
-            let v = cpu.mmu.get(0xFF00 + an);
+        Box::new(move |cpu: &mut CPU, arg: u16| {
+            let v = cpu.mmu.get(0xFF00 + arg);
 
             cpu.registers.set8(r, v);
             cycles(12)
@@ -441,7 +431,7 @@ pub fn ldh_r8_an8(r: Registers8) -> Instruction {
 pub fn ldc_ar8_r8(r1: Registers8, r2: Registers8) -> Instruction {
     Instruction::no_args(
         format!("LDC AR8 R8 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let ar = cpu.registers.get8(r1) as u16;
             let v = cpu.registers.get8(r2);
 
@@ -453,7 +443,7 @@ pub fn ldc_ar8_r8(r1: Registers8, r2: Registers8) -> Instruction {
 pub fn ldc_r8_ar8(r1: Registers8, r2: Registers8) -> Instruction {
     Instruction::no_args(
         format!("LDC R8 AR8 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let ar = cpu.registers.get8(r2) as u16;
             let v = cpu.mmu.get(0xFF00 + ar);
 
@@ -471,7 +461,7 @@ pub fn ldc_r8_ar8(r1: Registers8, r2: Registers8) -> Instruction {
 pub fn rla() -> Instruction {
     Instruction::no_args(
         format!("RLA"),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let value = cpu.registers.get8(Registers8::A);
             let out = helper::rl(cpu, value);
             cpu.registers.set8(Registers8::A, out);
@@ -487,7 +477,7 @@ pub fn rla() -> Instruction {
 pub fn rl_r8(r: Registers8) -> Instruction {
     Instruction::no_args(
         format!("RL R8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let value = cpu.registers.get8(r);
             let out = helper::rl(cpu, value);
             cpu.registers.set8(r, out);
@@ -502,7 +492,7 @@ pub fn rl_r8(r: Registers8) -> Instruction {
 pub fn rl_ar16(r: Registers16) -> Instruction {
     Instruction::no_args(
         format!("RL AR16 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let address = cpu.registers.get16(r);
             let value = cpu.mmu.get(address);
             let out = helper::rl(cpu, value);
@@ -518,7 +508,7 @@ pub fn rl_ar16(r: Registers16) -> Instruction {
 pub fn rrca() -> Instruction {
     Instruction::no_args(
         format!("RRCA"),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let value = cpu.registers.get8(Registers8::A);
             let out = helper::rrc(cpu, value);
             cpu.registers.set8(Registers8::A, out);
@@ -534,7 +524,7 @@ pub fn rrca() -> Instruction {
 pub fn rrc_r8(r: Registers8) -> Instruction {
     Instruction::no_args(
         format!("RRC R8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let value = cpu.registers.get8(r);
             let out = helper::rrc(cpu, value);
             cpu.registers.set8(r, out);
@@ -549,7 +539,7 @@ pub fn rrc_r8(r: Registers8) -> Instruction {
 pub fn rrc_ar16(r: Registers16) -> Instruction {
     Instruction::no_args(
         format!("RRC AR16 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let address = cpu.registers.get16(r);
             let value = cpu.mmu.get(address);
             let out = helper::rrc(cpu, value);
@@ -565,7 +555,7 @@ pub fn rrc_ar16(r: Registers16) -> Instruction {
 pub fn rra() -> Instruction {
     Instruction::no_args(
         format!("RRA"),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let value = cpu.registers.get8(Registers8::A);
             let out = helper::rr(cpu, value);
             cpu.registers.set8(Registers8::A, out);
@@ -581,7 +571,7 @@ pub fn rra() -> Instruction {
 pub fn rr_r8(r: Registers8) -> Instruction {
     Instruction::no_args(
         format!("RR R8: | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let value = cpu.registers.get8(r);
             let out = helper::rr(cpu, value);
             cpu.registers.set8(r, out);
@@ -596,7 +586,7 @@ pub fn rr_r8(r: Registers8) -> Instruction {
 pub fn rr_ar16(r: Registers16) -> Instruction {
     Instruction::no_args(
         format!("RR AR16 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let address = cpu.registers.get16(r);
             let value = cpu.mmu.get(address);
             let out = helper::rr(cpu, value);
@@ -612,7 +602,7 @@ pub fn rr_ar16(r: Registers16) -> Instruction {
 pub fn rlca() -> Instruction {
     Instruction::no_args(
         format!("RLCA"),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let value = cpu.registers.get8(Registers8::A);
             let out = helper::rlc(cpu, value);
             cpu.registers.set8(Registers8::A, out);
@@ -624,7 +614,7 @@ pub fn rlca() -> Instruction {
 pub fn rlc_r8(r: Registers8) -> Instruction {
     Instruction::no_args(
         format!("RLC R8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let value = cpu.registers.get8(r);
             let out = helper::rlc(cpu, value);
             cpu.registers.set8(r, out);
@@ -635,7 +625,7 @@ pub fn rlc_r8(r: Registers8) -> Instruction {
 pub fn rlc_ar16(r: Registers16) -> Instruction {
     Instruction::no_args(
         format!("RLC AR16 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let address = cpu.registers.get16(r);
             let value = cpu.mmu.get(address);
             let out = helper::rlc(cpu, value);
@@ -649,7 +639,7 @@ pub fn rlc_ar16(r: Registers16) -> Instruction {
 pub fn sla_r8(r: Registers8) -> Instruction {
     Instruction::no_args(
         format!("SLA R8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let value = cpu.registers.get8(r);
             let out = helper::sla(cpu, value);
             cpu.registers.set8(r, out);
@@ -662,7 +652,7 @@ pub fn sla_r8(r: Registers8) -> Instruction {
 pub fn sla_ar16(r: Registers16) -> Instruction {
     Instruction::no_args(
         format!("SLA AR16 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let address = cpu.registers.get16(r);
             let value = cpu.mmu.get(address);
             let out = helper::sla(cpu, value);
@@ -676,7 +666,7 @@ pub fn sla_ar16(r: Registers16) -> Instruction {
 pub fn sra_r8(r: Registers8) -> Instruction {
     Instruction::no_args(
         format!("SRA R8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let value = cpu.registers.get8(r);
             let out = helper::sra(cpu, value);
             cpu.registers.set8(r, out);
@@ -689,7 +679,7 @@ pub fn sra_r8(r: Registers8) -> Instruction {
 pub fn sra_ar16(r: Registers16) -> Instruction {
     Instruction::no_args(
         format!("SRA AR16 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let address = cpu.registers.get16(r);
             let value = cpu.mmu.get(address);
             let out = helper::sra(cpu, value);
@@ -703,7 +693,7 @@ pub fn sra_ar16(r: Registers16) -> Instruction {
 pub fn stop() -> Instruction {
     Instruction::no_args(
         format!("STOP"),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             cpu.stop();
             cycles(4)
         }))
@@ -715,7 +705,7 @@ pub fn stop() -> Instruction {
 pub fn halt() -> Instruction {
     Instruction::no_args(
         format!("HALT"),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             cpu.halt();
             cycles(4)
         }))
@@ -724,11 +714,9 @@ pub fn halt() -> Instruction {
 /* Jumps */
 
 pub fn jp_f_n16(f: JumpFlag) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg16(
         format!("JP F | {:?}", f),
-        Box::new(move |cpu: &mut CPU| {
-            let n = cpu.fetch_arg_16();
-
+        Box::new(move |cpu: &mut CPU, n: u16| {
             /* TODO: note there is a difference in cycle count
              * between matching and not matching branches
              */
@@ -760,10 +748,9 @@ pub fn jp_f_n16(f: JumpFlag) -> Instruction {
 }
 
 pub fn jp_n16() -> Instruction {
-    Instruction::no_args(
+    Instruction::arg16(
         format!("JP N16"),
-        Box::new(move |cpu: &mut CPU| {
-            let n = cpu.fetch_arg_16();
+        Box::new(move |cpu: &mut CPU, n: u16| {
             helper::jump(cpu, n);
             cycles(12)
         }))
@@ -772,7 +759,7 @@ pub fn jp_n16() -> Instruction {
 pub fn jp_r16(r: Registers16) -> Instruction {
     Instruction::no_args(
         format!("JP AR16 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let n = cpu.registers.get16(r);
             helper::jump(cpu, n);
             cycles(4)
@@ -780,22 +767,19 @@ pub fn jp_r16(r: Registers16) -> Instruction {
 }
 
 pub fn call_n16() -> Instruction {
-    Instruction::no_args(
+    Instruction::arg16(
         format!("CALL N16"),
-        Box::new(move |cpu: &mut CPU| {
-            let v = cpu.fetch_arg_16();
+        Box::new(move |cpu: &mut CPU, arg: u16| {
             helper::push(cpu, Registers16::PC);
-            helper::jump(cpu, v);
+            helper::jump(cpu, arg);
             cycles(12)
         }))
 }
 
 pub fn call_f_n16(f: JumpFlag) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg16(
         format!("CALL F N16 | {:?}", f),
-        Box::new(move |cpu: &mut CPU| {
-            let n = cpu.fetch_arg_16();
-
+        Box::new(move |cpu: &mut CPU, n: u16| {
             match f {
                 JumpFlag::NZ => {
                     if !cpu.registers.get_flag(Flag::Z) {
@@ -826,7 +810,7 @@ pub fn call_f_n16(f: JumpFlag) -> Instruction {
 pub fn push_r16(r: Registers16) -> Instruction {
     Instruction::no_args(
         format!("PUSH R16 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             helper::push(cpu, r);
             cycles(16)
         }))
@@ -835,7 +819,7 @@ pub fn push_r16(r: Registers16) -> Instruction {
 pub fn rst_f(f: RstFlag) -> Instruction {
     Instruction::no_args(
         format!("RST F: {:?}", f),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let location = rst_locations(f);
             helper::push(cpu, Registers16::PC);
             helper::jump(cpu, location);
@@ -846,7 +830,7 @@ pub fn rst_f(f: RstFlag) -> Instruction {
 pub fn di() -> Instruction {
     Instruction::no_args(
         format!("DI"),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             cpu.registers.ime = IME::Disabled;
             cycles(4)
         }))
@@ -855,7 +839,7 @@ pub fn di() -> Instruction {
 pub fn ei() -> Instruction {
     Instruction::no_args(
         format!("EI"),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             cpu.registers.ime = IME::Queued;
             cycles(4)
         }))
@@ -871,7 +855,7 @@ pub fn ei() -> Instruction {
 pub fn ret() -> Instruction {
     Instruction::no_args(
         format!("RET"),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             helper::ret(cpu);
             cycles(8)
         }))
@@ -880,7 +864,7 @@ pub fn ret() -> Instruction {
 pub fn reti() -> Instruction {
     Instruction::no_args(
         format!("RETI"),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             helper::ret(cpu);
             cpu.registers.ime = IME::Queued;
             cycles(8)
@@ -890,7 +874,7 @@ pub fn reti() -> Instruction {
 pub fn ret_f(f: JumpFlag) -> Instruction {
     Instruction::no_args(
         format!("RET F | {:?}", f),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             match f {
                 JumpFlag::NZ => {
                     if !cpu.registers.get_flag(Flag::Z) {
@@ -922,28 +906,27 @@ pub fn ret_f(f: JumpFlag) -> Instruction {
 pub fn pop_r16(r: Registers16) -> Instruction {
     Instruction::no_args(
         format!("POP R16 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             helper::pop(cpu, r);
             cycles(12)
         }))
 }
 
 pub fn jr_n8() -> Instruction {
-    Instruction::no_args(
+    Instruction::arg8(
         format!("JR N8"),
-        Box::new(move |cpu: &mut CPU| {
-            let n = cpu.fetch_arg_8();
-            helper::jr(cpu, n);
+        Box::new(move |cpu: &mut CPU, arg: u16| {
+            helper::jr(cpu, arg as u8);
             cycles(8)
         }))
 }
 
 
 pub fn jr_f_n8(f: JumpFlag) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg8(
         format!("JR F N8 | {:?}", f),
-        Box::new(move |cpu: &mut CPU| {
-            let n = cpu.fetch_arg_8();
+        Box::new(move |cpu: &mut CPU, arg: u16| {
+            let n = arg as u8;
 
             match f {
                 JumpFlag::NZ => {
@@ -977,7 +960,7 @@ pub fn jr_f_n8(f: JumpFlag) -> Instruction {
 pub fn cpl() -> Instruction {
     Instruction::no_args(
         format!("CPL"),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let v = cpu.registers.get8(Registers8::A);
             cpu.registers.set8(Registers8::A, !v);
 
@@ -1005,7 +988,7 @@ pub fn cpl() -> Instruction {
 pub fn daa() -> Instruction {
     Instruction::no_args(
         format!("DAA"),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let mut v = cpu.registers.get8(Registers8::A);
 
             let n = cpu.registers.get_flag(Flag::N);
@@ -1042,7 +1025,7 @@ pub fn daa() -> Instruction {
 pub fn scf() -> Instruction {
     Instruction::no_args(
         format!("SCF"),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             cpu.registers.set_flag(Flag::N, false);
             cpu.registers.set_flag(Flag::H, false);
             cpu.registers.set_flag(Flag::C, true);
@@ -1054,7 +1037,7 @@ pub fn scf() -> Instruction {
 pub fn ccf() -> Instruction {
     Instruction::no_args(
         format!("CCF"),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let c = cpu.registers.get_flag(Flag::C);
 
             cpu.registers.set_flag(Flag::N, false);
@@ -1067,14 +1050,11 @@ pub fn ccf() -> Instruction {
 
 
 pub fn add_r16_n8(r: Registers16) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg8(
         format!("ADD R16 N8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, arg: u16| {
             let a = cpu.registers.get16(r);
-            let b = cpu.fetch_arg_8();
-
-
-            let v = helper::add_u16_i8(cpu, a, b);
+            let v = helper::add_u16_i8(cpu, a, arg as u8);
 
             cpu.registers.set16(r, v);
 
@@ -1085,7 +1065,7 @@ pub fn add_r16_n8(r: Registers16) -> Instruction {
 pub fn add_r8_r8(r1: Registers8, r2: Registers8) -> Instruction {
     Instruction::no_args(
         format!("ADD R8 R8 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let a = cpu.registers.get8(r1);
             let b = cpu.registers.get8(r2);
 
@@ -1097,13 +1077,11 @@ pub fn add_r8_r8(r1: Registers8, r2: Registers8) -> Instruction {
 }
 
 pub fn add_r8_n8(r: Registers8) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg8(
         format!("ADD R8 N8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, arg: u16| {
             let a = cpu.registers.get8(r);
-            let b = cpu.fetch_arg_8();
-
-            let v = helper::add(cpu, a, b);
+            let v = helper::add(cpu, a, arg as u8);
 
             cpu.registers.set8(r, v);
             cycles(8)
@@ -1113,7 +1091,7 @@ pub fn add_r8_n8(r: Registers8) -> Instruction {
 pub fn add_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
     Instruction::no_args(
         format!("ADD R8 AR16 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let a = cpu.registers.get8(r1);
             let address = cpu.registers.get16(r2);
             let b = cpu.mmu.get(address);
@@ -1128,7 +1106,7 @@ pub fn add_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
 pub fn adc_r8_r8(r1: Registers8, r2: Registers8) -> Instruction {
     Instruction::no_args(
         format!("ADC R8 R8 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let a = cpu.registers.get8(r1);
             let b = cpu.registers.get8(r2);
 
@@ -1143,7 +1121,7 @@ pub fn adc_r8_r8(r1: Registers8, r2: Registers8) -> Instruction {
 pub fn adc_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
     Instruction::no_args(
         format!("ADC R8 AR16 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let a = cpu.registers.get8(r1);
             let address = cpu.registers.get16(r2);
             let b = cpu.mmu.get(address);
@@ -1156,13 +1134,11 @@ pub fn adc_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
 }
 
 pub fn adc_r8_n8(r: Registers8) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg8(
         format!("ADC R8 N8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, arg: u16| {
             let a = cpu.registers.get8(r);
-            let b = cpu.fetch_arg_8();
-
-            let v = helper::adc(cpu, a, b);
+            let v = helper::adc(cpu, a, arg as u8);
 
             cpu.registers.set8(r, v);
             cycles(8)
@@ -1172,7 +1148,7 @@ pub fn adc_r8_n8(r: Registers8) -> Instruction {
 pub fn add_r16_r16(r1: Registers16, r2: Registers16) -> Instruction {
     Instruction::no_args(
         format!("ADD R16 R16 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let a = cpu.registers.get16(r1);
             let b = cpu.registers.get16(r2);
 
@@ -1192,7 +1168,7 @@ pub fn add_r16_r16(r1: Registers16, r2: Registers16) -> Instruction {
 pub fn sub_r8_r8(r1: Registers8, r2: Registers8) -> Instruction {
     Instruction::no_args(
         format!("SUB R8 R8 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let a = cpu.registers.get8(r1);
             let b = cpu.registers.get8(r2);
 
@@ -1206,7 +1182,7 @@ pub fn sub_r8_r8(r1: Registers8, r2: Registers8) -> Instruction {
 pub fn sub_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
     Instruction::no_args(
         format!("SUB R8 AR16 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let a = cpu.registers.get8(r1);
             let address = cpu.registers.get16(r2);
             let b = cpu.mmu.get(address);
@@ -1219,13 +1195,11 @@ pub fn sub_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
 }
 
 pub fn sub_r8_n8(r: Registers8) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg8(
         format!("SUB R8 N8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, arg: u16| {
             let a = cpu.registers.get8(r);
-            let b = cpu.fetch_arg_8();
-
-            let v = helper::sub(cpu, a, b);
+            let v = helper::sub(cpu, a, arg as u8);
 
             cpu.registers.set8(r, v);
             cycles(8)
@@ -1235,7 +1209,7 @@ pub fn sub_r8_n8(r: Registers8) -> Instruction {
 pub fn sbc_r8_r8(r1: Registers8, r2: Registers8) -> Instruction {
     Instruction::no_args(
         format!("SBC R8 R8 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let a = cpu.registers.get8(r1);
             let b = cpu.registers.get8(r2);
 
@@ -1249,7 +1223,7 @@ pub fn sbc_r8_r8(r1: Registers8, r2: Registers8) -> Instruction {
 pub fn sbc_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
     Instruction::no_args(
         format!("SBC R8 R16 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let a = cpu.registers.get8(r1);
             let address = cpu.registers.get16(r2);
             let b = cpu.mmu.get(address);
@@ -1262,13 +1236,11 @@ pub fn sbc_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
 }
 
 pub fn sbc_r8_n8(r: Registers8) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg8(
         format!("SBC R8 N8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, arg: u16| {
             let a = cpu.registers.get8(r);
-            let b = cpu.fetch_arg_8();
-
-            let v = helper::sbc(cpu, a, b);
+            let v = helper::sbc(cpu, a, arg as u8);
 
             cpu.registers.set8(r, v);
             cycles(8)
@@ -1276,13 +1248,11 @@ pub fn sbc_r8_n8(r: Registers8) -> Instruction {
 }
 
 pub fn and_r8_n8(r: Registers8) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg8(
         format!("AND R8 N8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, arg: u16| {
             let a = cpu.registers.get8(r);
-            let b = cpu.fetch_arg_8();
-
-            let v = helper::and(cpu, a, b);
+            let v = helper::and(cpu, a, arg as u8);
 
             cpu.registers.set8(r, v);
             cycles(8)
@@ -1292,7 +1262,7 @@ pub fn and_r8_n8(r: Registers8) -> Instruction {
 pub fn and_r8_r8(r1: Registers8, r2: Registers8) -> Instruction {
     Instruction::no_args(
         format!("AND R8 R8 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let a = cpu.registers.get8(r1);
             let b = cpu.registers.get8(r2);
 
@@ -1306,7 +1276,7 @@ pub fn and_r8_r8(r1: Registers8, r2: Registers8) -> Instruction {
 pub fn and_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
     Instruction::no_args(
         format!("AND R8 AR16 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let a = cpu.registers.get8(r1);
             let address = cpu.registers.get16(r2);
             let b = cpu.mmu.get(address);
@@ -1321,7 +1291,7 @@ pub fn and_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
 pub fn xor_r8_r8(r1: Registers8, r2: Registers8) -> Instruction {
     Instruction::no_args(
         format!("XOR R8 R8 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let a = cpu.registers.get8(r1);
             let b = cpu.registers.get8(r2);
 
@@ -1333,13 +1303,11 @@ pub fn xor_r8_r8(r1: Registers8, r2: Registers8) -> Instruction {
 }
 
 pub fn xor_r8_n8(r: Registers8) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg8(
         format!("XOR R8 N8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, arg: u16| {
             let a = cpu.registers.get8(r);
-            let b = cpu.fetch_arg_8();
-
-            let v = helper::xor(cpu, a, b);
+            let v = helper::xor(cpu, a, arg as u8);
 
             cpu.registers.set8(r, v);
             cycles(8)
@@ -1349,7 +1317,7 @@ pub fn xor_r8_n8(r: Registers8) -> Instruction {
 pub fn xor_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
     Instruction::no_args(
         format!("XOR R8 AR16 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let a = cpu.registers.get8(r1);
             let address = cpu.registers.get16(r2);
             let b = cpu.mmu.get(address);
@@ -1364,7 +1332,7 @@ pub fn xor_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
 pub fn or_r8_r8(r1: Registers8, r2: Registers8) -> Instruction {
     Instruction::no_args(
         format!("OX R8 R8 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let a = cpu.registers.get8(r1);
             let b = cpu.registers.get8(r2);
 
@@ -1376,13 +1344,11 @@ pub fn or_r8_r8(r1: Registers8, r2: Registers8) -> Instruction {
 }
 
 pub fn or_r8_n8(r: Registers8) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg8(
         format!("OR R8 N8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, arg: u16| {
             let a = cpu.registers.get8(r);
-            let b = cpu.fetch_arg_8();
-
-            let v = helper::or(cpu, a, b);
+            let v = helper::or(cpu, a, arg as u8);
 
             cpu.registers.set8(r, v);
             cycles(8)
@@ -1392,7 +1358,7 @@ pub fn or_r8_n8(r: Registers8) -> Instruction {
 pub fn or_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
     Instruction::no_args(
         format!("OR R8 AR16 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let a = cpu.registers.get8(r1);
             let address = cpu.registers.get16(r2);
             let b = cpu.mmu.get(address);
@@ -1407,7 +1373,7 @@ pub fn or_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
 pub fn cp_r8_r8(r1: Registers8, r2: Registers8) -> Instruction {
     Instruction::no_args(
         format!("CP R8 R8 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let a = cpu.registers.get8(r1);
             let b = cpu.registers.get8(r2);
 
@@ -1418,14 +1384,11 @@ pub fn cp_r8_r8(r1: Registers8, r2: Registers8) -> Instruction {
 }
 
 pub fn cp_r8_n8(r: Registers8) -> Instruction {
-    Instruction::no_args(
+    Instruction::arg8(
         format!("CP R8 N8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, arg: u16| {
             let a = cpu.registers.get8(r);
-            let b = cpu.fetch_arg_8();
-
-            helper::sub(cpu, a, b);
-
+            helper::sub(cpu, a, arg as u8);
             cycles(8)
         }))
 }
@@ -1433,7 +1396,7 @@ pub fn cp_r8_n8(r: Registers8) -> Instruction {
 pub fn cp_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
     Instruction::no_args(
         format!("CP R8 AR16 | {:?} {:?}", r1, r2),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let a = cpu.registers.get8(r1);
             let address = cpu.registers.get16(r2);
             let b = cpu.mmu.get(address);
@@ -1447,7 +1410,7 @@ pub fn cp_r8_ar16(r1: Registers8, r2: Registers16) -> Instruction {
 pub fn swap_r8(r: Registers8) -> Instruction {
     Instruction::no_args(
         format!("SWAP | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let value = cpu.registers.get8(r);
             let out = helper::swap(cpu, value);
             cpu.registers.set8(r, out);
@@ -1458,7 +1421,7 @@ pub fn swap_r8(r: Registers8) -> Instruction {
 pub fn swap_ar16(r: Registers16) -> Instruction {
     Instruction::no_args(
         format!("SWAP | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let address = cpu.registers.get16(r);
             let value = cpu.mmu.get(address);
             let out = helper::swap(cpu, value);
@@ -1471,7 +1434,7 @@ pub fn swap_ar16(r: Registers16) -> Instruction {
 pub fn srl_r8(r: Registers8) -> Instruction {
     Instruction::no_args(
         format!("SRC R8 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let value = cpu.registers.get8(r);
             let out = helper::srl(cpu, value);
             cpu.registers.set8(r, out);
@@ -1483,7 +1446,7 @@ pub fn srl_r8(r: Registers8) -> Instruction {
 pub fn srl_ar16(r: Registers16) -> Instruction {
     Instruction::no_args(
         format!("SRL AR16 | {:?}", r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let address = cpu.registers.get16(r);
             let value = cpu.mmu.get(address);
             let out = helper::srl(cpu, value);
@@ -1496,7 +1459,7 @@ pub fn srl_ar16(r: Registers16) -> Instruction {
 pub fn bit_r8(n:u8, r: Registers8) -> Instruction {
     Instruction::no_args(
         format!("BIT R8 | {:?} {:?}", n, r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let value = cpu.registers.get8(r);
 
             helper::bit(cpu, n, value);
@@ -1508,7 +1471,7 @@ pub fn bit_r8(n:u8, r: Registers8) -> Instruction {
 pub fn bit_ar16(n:u8, r: Registers16) -> Instruction {
     Instruction::no_args(
         format!("BIT AR16 | {:?} {:?}", n, r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let address = cpu.registers.get16(r);
             let value = cpu.mmu.get(address);
 
@@ -1521,7 +1484,7 @@ pub fn bit_ar16(n:u8, r: Registers16) -> Instruction {
 pub fn res_r8(n:u8, r: Registers8) -> Instruction {
     Instruction::no_args(
         format!("RES R8 | {:?} {:?}", n, r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let value = cpu.registers.get8(r);
 
             let out = helper::res(n, value);
@@ -1535,7 +1498,7 @@ pub fn res_r8(n:u8, r: Registers8) -> Instruction {
 pub fn res_ar16(n:u8, r: Registers16) -> Instruction {
     Instruction::no_args(
         format!("RES AR16 | {:?} {:?}", n, r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let address = cpu.registers.get16(r);
             let value = cpu.mmu.get(address);
 
@@ -1550,7 +1513,7 @@ pub fn res_ar16(n:u8, r: Registers16) -> Instruction {
 pub fn set_r8(n:u8, r: Registers8) -> Instruction {
     Instruction::no_args(
         format!("SET R8 | {:?} {:?}", n, r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let value = cpu.registers.get8(r);
 
             let out = helper::set(n, value);
@@ -1564,7 +1527,7 @@ pub fn set_r8(n:u8, r: Registers8) -> Instruction {
 pub fn set_ar16(n:u8, r: Registers16) -> Instruction {
     Instruction::no_args(
         format!("SET AR16 | {:?} {:?}", n, r),
-        Box::new(move |cpu: &mut CPU| {
+        Box::new(move |cpu: &mut CPU, _arg: u16| {
             let address = cpu.registers.get16(r);
             let value = cpu.mmu.get(address);
 
@@ -1579,7 +1542,7 @@ pub fn set_ar16(n:u8, r: Registers16) -> Instruction {
 pub fn illegal_opcode(opcode: u32) -> Instruction {
     Instruction::no_args(
         format!("Illegal opcode: 0x{:X}", opcode),
-        Box::new(move |_cpu: &mut CPU| {
+        Box::new(move |_cpu: &mut CPU, _arg: u16| {
             panic!("Illegal opcode!")
         }))
 }
@@ -1590,10 +1553,11 @@ mod tests {
     use super::*;
     use crate::rom::BootRom;
     use crate::cartridge::Cartridge;
+    use crate::register::Registers;
     use crate::mmu::MMU;
 
     fn test_cpu() -> CPU {
-        CPU::new(MMU::new(BootRom::zero(), Cartridge::zero()), false, false)
+        CPU::new(Registers::new(), MMU::new(BootRom::zero(), Cartridge::zero()))
     }
 
     #[test]
@@ -1612,7 +1576,7 @@ mod tests {
         let mut cpu = test_cpu();
 
         cpu.registers.set8(Registers8::A, 0x80);
-        set_r8(3, Registers8::A).call(&mut cpu);
+        cpu.execute(&set_r8(3, Registers8::A));
 
         assert_eq!(cpu.registers.get8(Registers8::A), 0x88);
 
@@ -1626,7 +1590,7 @@ mod tests {
     fn test_scf() {
         let mut cpu = test_cpu();
 
-        scf().call(&mut cpu);
+        cpu.execute(&scf());
 
         assert_eq!(cpu.registers.get_flag(Flag::Z), false);
         assert_eq!(cpu.registers.get_flag(Flag::N), false);
@@ -1642,7 +1606,7 @@ mod tests {
         cpu.registers.set8(Registers8::E, 0x0F);
         cpu.registers.set_flag(Flag::C, true);
 
-        adc_r8_r8(Registers8::A, Registers8::E).call(&mut cpu);
+        cpu.execute(&adc_r8_r8(Registers8::A, Registers8::E));
 
         assert_eq!(cpu.registers.get8(Registers8::A), 0xF1);
 
@@ -1659,7 +1623,7 @@ mod tests {
         cpu.registers.set_flag(Flag::C, true);
         cpu.push_pc(0xFF80, 0x3B);
 
-        adc_r8_n8(Registers8::A).call(&mut cpu);
+        cpu.execute(&adc_r8_n8(Registers8::A));
 
         assert_eq!(cpu.registers.get8(Registers8::A), 0x1D);
 
@@ -1676,7 +1640,7 @@ mod tests {
         cpu.registers.set8(Registers8::H, 0x2A);
         cpu.registers.set_flag(Flag::C, true);
 
-        sbc_r8_r8(Registers8::A, Registers8::H).call(&mut cpu);
+        cpu.execute(&sbc_r8_r8(Registers8::A, Registers8::H));
 
         assert_eq!(cpu.registers.get8(Registers8::A), 0x10);
 
@@ -1692,7 +1656,7 @@ mod tests {
 
         cpu.registers.set8(Registers8::L, 0x01);
 
-        dec_r8(Registers8::L).call(&mut cpu);
+        cpu.execute(&dec_r8(Registers8::L));
 
         assert_eq!(cpu.registers.get8(Registers8::L), 0x00);
 
@@ -1709,7 +1673,7 @@ mod tests {
 
         cpu.registers.set8(Registers8::L, 0x01);
 
-        inc_r8(Registers8::L).call(&mut cpu);
+        cpu.execute(&inc_r8(Registers8::L));
 
         assert_eq!(cpu.registers.get8(Registers8::L), 0x02);
 
@@ -1725,7 +1689,7 @@ mod tests {
 
         cpu.registers.set8(Registers8::A, 0x85);
 
-        rlca().call(&mut cpu);
+        cpu.execute(&rlca());
 
         /* Note this disagrees with the gamboy manual
          * The manual suggests this should be 0x0A but that
@@ -1745,7 +1709,7 @@ mod tests {
 
         cpu.registers.set8(Registers8::A, 0x8A);
 
-        sra_r8(Registers8::A).call(&mut cpu);
+        cpu.execute(&sra_r8(Registers8::A));
 
         assert_eq!(cpu.registers.get8(Registers8::A), 0xC5);
 
@@ -1763,7 +1727,7 @@ mod tests {
         cpu.registers.set16(Registers16::HL, 0xFF80);
         cpu.registers.set_flag(Flag::C, true);
 
-        dec_ar16(Registers16::HL).call(&mut cpu);
+        cpu.execute(&dec_ar16(Registers16::HL));
 
         assert_eq!(cpu.mmu.get(0xFF80), 0xFF);
 
@@ -1783,7 +1747,7 @@ mod tests {
         cpu.registers.set16(Registers16::HL, 0xFF80);
         cpu.registers.set_flag(Flag::C, true);
 
-        inc_ar16(Registers16::HL).call(&mut cpu);
+        cpu.execute(&inc_ar16(Registers16::HL));
 
         assert_eq!(cpu.mmu.get(0xFF80), 0x51);
 
@@ -1803,22 +1767,22 @@ mod tests {
         cpu.registers.set8(Registers8::B, 0x38);
         cpu.registers.set_flag(Flag::N, true);
 
-        add_r8_r8(Registers8::A, Registers8::B).call(&mut cpu);
+        cpu.execute(&add_r8_r8(Registers8::A, Registers8::B));
 
         assert_eq!(cpu.registers.get8(Registers8::A), 0x7D);
         assert_eq!(cpu.registers.get_flag(Flag::N), false);
 
-        daa().call(&mut cpu);
+        cpu.execute(&daa());
 
         assert_eq!(cpu.registers.get8(Registers8::A), 0x83);
         assert_eq!(cpu.registers.get_flag(Flag::C), false);
 
-        sub_r8_r8(Registers8::A, Registers8::B).call(&mut cpu);
+        cpu.execute(&sub_r8_r8(Registers8::A, Registers8::B));
 
         assert_eq!(cpu.registers.get8(Registers8::A), 0x4B);
         assert_eq!(cpu.registers.get_flag(Flag::N), true);
 
-        daa().call(&mut cpu);
+        cpu.execute(&daa());
 
         assert_eq!(cpu.registers.get8(Registers8::A), 0x45);
     }
@@ -1830,7 +1794,7 @@ mod tests {
         cpu.registers.set16(Registers16::SP, 0xFFF8);
         cpu.push_pc(0xFF80, 0x02);
 
-        ld_r16_spn8(Registers16::HL).call(&mut cpu);
+        cpu.execute(&ld_r16_spn8(Registers16::HL));
 
         assert_eq!(cpu.registers.get16(Registers16::HL), 0xFFFA);
         assert_eq!(cpu.registers.get_flag(Flag::Z), false);
@@ -1847,7 +1811,7 @@ mod tests {
         cpu.registers.set16(Registers16::SP, 0xDFFD);
         cpu.push_pc(0xFF80, 0xFE);
 
-        ld_r16_spn8(Registers16::HL).call(&mut cpu);
+        cpu.execute(&ld_r16_spn8(Registers16::HL));
 
         assert_eq!(cpu.registers.get16(Registers16::HL), 0xDFFB);
         assert_eq!(cpu.registers.get_flag(Flag::Z), false);
@@ -1864,7 +1828,7 @@ mod tests {
         cpu.registers.set16(Registers16::SP, 0xDFFD);
         cpu.push_pc(0xFF80, 0x01);
 
-        add_r16_n8(Registers16::SP).call(&mut cpu);
+        cpu.execute(&add_r16_n8(Registers16::SP));
 
         assert_eq!(cpu.registers.get16(Registers16::SP), 0xDFFE);
         assert_eq!(cpu.registers.get_flag(Flag::Z), false);
@@ -1880,7 +1844,7 @@ mod tests {
         cpu.registers.set16(Registers16::SP, 0xDFFD);
         cpu.push_pc(0xFF80, 0xFF);
 
-        add_r16_n8(Registers16::SP).call(&mut cpu);
+        cpu.execute(&add_r16_n8(Registers16::SP));
 
         assert_eq!(cpu.registers.get16(Registers16::SP), 0xDFFC);
         assert_eq!(cpu.registers.get_flag(Flag::Z), false);
@@ -1896,7 +1860,7 @@ mod tests {
         cpu.registers.set_flag(Flag::Z, true);
         cpu.push_pc(0xFF80, 0x10);
 
-        jp_f_n16(JumpFlag::Z).call(&mut cpu);
+        cpu.execute(&jp_f_n16(JumpFlag::Z));
 
         assert_eq!(cpu.registers.get16(Registers16::PC), 0x10);
     }
@@ -1908,7 +1872,7 @@ mod tests {
         cpu.registers.set_flag(Flag::Z, true);
         cpu.push_pc(0xFF80, 0x10);
 
-        jp_f_n16(JumpFlag::NZ).call(&mut cpu);
+        cpu.execute(&jp_f_n16(JumpFlag::NZ));
 
         assert_eq!(cpu.registers.get16(Registers16::PC), 0xFF82);
     }
@@ -1921,7 +1885,7 @@ mod tests {
         cpu.push_pc(0x8001, 0x34);
         cpu.registers.set16(Registers16::SP, 0xFFFE);
 
-        call_n16().call(&mut cpu);
+        cpu.execute(&call_n16());
 
         assert_eq!(cpu.registers.get16(Registers16::PC), 0x1234);
         assert_eq!(cpu.registers.get16(Registers16::SP), 0xFFFC);
@@ -1937,11 +1901,11 @@ mod tests {
         cpu.push_pc(0x8002, 0x90);
         cpu.push_pc(0x8001, 0x00);
 
-        call_n16().call(&mut cpu);
+        cpu.execute(&call_n16());
 
         assert_eq!(cpu.registers.get16(Registers16::PC), 0x9000);
 
-        ret().call(&mut cpu);
+        cpu.execute(&ret());
 
         assert_eq!(cpu.registers.get16(Registers16::PC), 0x8003);
     }
@@ -1953,7 +1917,7 @@ mod tests {
         cpu.registers.set8(Registers8::A, 0x3E);
         cpu.registers.set8(Registers8::E, 0x3E);
 
-        sub_r8_r8(Registers8::A, Registers8::E).call(&mut cpu);
+        cpu.execute(&sub_r8_r8(Registers8::A, Registers8::E));
 
         assert_eq!(cpu.registers.get8(Registers8::A), 0x00);
 
@@ -1971,7 +1935,7 @@ mod tests {
         cpu.registers.set8(Registers8::A, 0x3C);
         cpu.registers.set8(Registers8::B, 0x2F);
 
-        cp_r8_r8(Registers8::A, Registers8::B).call(&mut cpu);
+        cpu.execute(&cp_r8_r8(Registers8::A, Registers8::B));
 
         assert_eq!(cpu.registers.get8(Registers8::A), 0x3C);
 
@@ -1988,7 +1952,7 @@ mod tests {
         cpu.registers.set8(Registers8::A, 0x3C);
         cpu.push_pc(0xFF80, 0x3C);
 
-        cp_r8_n8(Registers8::A).call(&mut cpu);
+        cpu.execute(&cp_r8_n8(Registers8::A));
 
         assert_eq!(cpu.registers.get_flag(Flag::Z), true);
         assert_eq!(cpu.registers.get_flag(Flag::H), false);

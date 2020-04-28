@@ -9,7 +9,7 @@ use crate::framebuffer;
 use crate::tile::Tile;
 use crate::palette::Palette;
 
-use crate::instruction::opcode;
+use crate::instruction::{opcode, Instruction, OpResult};
 use crate::instruction::helper::call;
 
 pub struct CPUManager {
@@ -107,16 +107,12 @@ impl CPUManager {
             self.cpu.registers.ime = IME::Enabled;
         }
 
-
         let opcode = self.cpu.get_opcode();
         let instruction = self.instructions.fetch(opcode).unwrap();
-        println!("Instruction: {}", instruction.description);
-        let result = instruction.call(&mut self.cpu);
+        let result = self.cpu.execute(instruction);
         self.cpu.advance_cycles(result.cycles)
     }
 }
-
-
 
 pub struct CPU {
     pub mmu: MMU,
@@ -135,6 +131,20 @@ impl CPU {
             mmu: mmu,
             registers: registers,
             buffer: framebuffer::new(),
+        }
+    }
+
+    pub fn execute(&mut self, instruction: &Instruction) -> OpResult {
+        let args = self.get_arguments(instruction);
+        instruction.call(self, args)
+    }
+
+    fn get_arguments(&mut self, instruction: &Instruction) -> u16 {
+        match instruction.args {
+            0 => 0,
+            1 => self.fetch_arg_8() as u16,
+            2 => self.fetch_arg_16(),
+            _ => panic!("Args can be 0,1,2"),
         }
     }
 

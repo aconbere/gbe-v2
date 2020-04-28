@@ -4,14 +4,6 @@ pub struct TileMap {
     storage: [u8;2048]
 }
 
-impl TileMap {
-    pub fn new() -> TileMap {
-        TileMap {
-            storage: [0;2048],
-        }
-    }
-}
-
 impl Device for TileMap {
     fn get(&self, address: u16) -> u8 {
         self.storage[address as usize]

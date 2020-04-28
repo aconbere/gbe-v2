@@ -16,9 +16,9 @@ pub fn check_bit(input: u8, n: u8) -> bool {
     (input & (1 << n)) != 0
 }
 
-pub fn get_bit(input: u8, n: u8) -> u8 {
-    (input & (1 << n)) >> n
-}
+// pub fn get_bit(input: u8, n: u8) -> u8 {
+//     (input & (1 << n)) >> n
+// }
 
 pub fn set_bit(input: u8, n: u8, b: bool) -> u8 {
     if b {
@@ -56,9 +56,9 @@ pub fn check_half_carry_sub8(a:u8, b:u8) -> bool {
     (a & 0x0F) < (b & 0x0F)
 }
 
-pub fn check_half_carry_sub16(a:u16, b:u16) -> bool {
-    (a & 0x0FFF) < (b & 0x0FFF)
-}
+// pub fn check_half_carry_sub16(a:u16, b:u16) -> bool {
+//     (a & 0x0FFF) < (b & 0x0FFF)
+// }
 
 #[cfg(test)]
 mod tests {
