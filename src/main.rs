@@ -22,8 +22,9 @@ mod helpers;
 mod cartridge;
 mod msg;
 mod instruction;
+mod repl;
 
-use gameboy::Gameboy;
+use crate::gameboy::Gameboy;
 
 fn main() {
     let matches = clap_app!(anders_gameboy_emulator =>
@@ -32,26 +33,47 @@ fn main() {
         (about: "Emulates a gameboy V2")
         (@arg BOOT_ROM: --boot_rom +takes_value +required "The file of the boot rom to load.")
         (@arg GAME_ROM: --game_rom +takes_value +required "The file of the game rom to load.")
-        (@arg LOG: --log "If true print debug output.")
         (@arg SKIP_BOOT: --skip_boot "If true skips booting from the rom.")
-        (@arg CONFIG: --config +takes_value "An optional configuration file to read.")
+        (@arg DEBUG: --debug "If true skips booting from the rom.")
     ).get_matches();
 
-    let (sender, receiver) = sync_channel(0);
 
-    thread::spawn(move || {
-        let mut gameboy = Gameboy::new(
-            matches.value_of("BOOT_ROM").unwrap(),
-            matches.value_of("GAME_ROM").unwrap(),
-            matches.is_present("SKIP_BOOT"),
-            sender,
-        ).unwrap();
+    if matches.is_present("DEBUG") {
+        thread::spawn(|| {
+            repl::start();
+        });
 
-        loop {
-            gameboy.next_frame();
-        }
-    });
+        let (sender, receiver) = sync_channel(0);
+        thread::spawn(move || {
+            let mut gameboy = Gameboy::new(
+                matches.value_of("BOOT_ROM").unwrap(),
+                matches.value_of("GAME_ROM").unwrap(),
+                matches.is_present("SKIP_BOOT"),
+                sender,
+            ).unwrap();
 
-    let mut display = sdl::SDL::new(receiver).unwrap();
-    display.start();
+            loop {
+                gameboy.next_frame();
+            }
+        });
+        let mut display = sdl::SDL::new(receiver).unwrap();
+        display.start();
+    } else {
+        let (sender, receiver) = sync_channel(0);
+        thread::spawn(move || {
+            let mut gameboy = Gameboy::new(
+                matches.value_of("BOOT_ROM").unwrap(),
+                matches.value_of("GAME_ROM").unwrap(),
+                matches.is_present("SKIP_BOOT"),
+                sender,
+            ).unwrap();
+
+            loop {
+                gameboy.next_frame();
+            }
+        });
+        let mut display = sdl::SDL::new(receiver).unwrap();
+        display.start();
+    }
+
 }

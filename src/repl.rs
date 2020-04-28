@@ -363,7 +363,7 @@ impl Debugger {
     }
 }
 
-fn main() {
+pub fn start() {
     let stdin = io::stdin();
 
     let mut input_handle = stdin.lock();

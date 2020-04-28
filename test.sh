@@ -6,7 +6,7 @@ pushd ../blarggs-tests/cpu_instrs/source
 # ./build.sh "08-misc instrs" # never completes
 
 
-# ./build.sh "01-special" # PASSING
+./build.sh "01-special" # PASSING
 # ./build.sh "02-interrupts" PASSING
 # ./build.sh "04-op r,imm" # PASSING
 # ./build.sh "05-op rp" # PASSING
