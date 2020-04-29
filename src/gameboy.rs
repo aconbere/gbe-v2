@@ -48,6 +48,12 @@ impl Gameboy {
         })
     }
 
+    pub fn start(&mut self) {
+        loop {
+            self.next_frame();
+        }
+    }
+
     pub fn next_frame(&mut self) {
         self.cpu.next_frame();
         self.sender.send(self.cpu.frame_info()).unwrap();

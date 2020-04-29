@@ -38,42 +38,26 @@ fn main() {
     ).get_matches();
 
 
+    let (debugger_sender, debugger_receiver) = sync_channel(0);
+
     if matches.is_present("DEBUG") {
         thread::spawn(|| {
-            repl::start();
+            repl::start(debugger_sender);
         });
-
-        let (sender, receiver) = sync_channel(0);
-        thread::spawn(move || {
-            let mut gameboy = Gameboy::new(
-                matches.value_of("BOOT_ROM").unwrap(),
-                matches.value_of("GAME_ROM").unwrap(),
-                matches.is_present("SKIP_BOOT"),
-                sender,
-            ).unwrap();
-
-            loop {
-                gameboy.next_frame();
-            }
-        });
-        let mut display = sdl::SDL::new(receiver).unwrap();
-        display.start();
-    } else {
-        let (sender, receiver) = sync_channel(0);
-        thread::spawn(move || {
-            let mut gameboy = Gameboy::new(
-                matches.value_of("BOOT_ROM").unwrap(),
-                matches.value_of("GAME_ROM").unwrap(),
-                matches.is_present("SKIP_BOOT"),
-                sender,
-            ).unwrap();
-
-            loop {
-                gameboy.next_frame();
-            }
-        });
-        let mut display = sdl::SDL::new(receiver).unwrap();
-        display.start();
     }
 
+    let (frame_sender, frame_receiver) = sync_channel(0);
+
+    thread::spawn(move || {
+        let mut gameboy = Gameboy::new(
+            matches.value_of("BOOT_ROM").unwrap(),
+            matches.value_of("GAME_ROM").unwrap(),
+            matches.is_present("SKIP_BOOT"),
+            frame_sender,
+            debugger_receiver,
+        ).unwrap();
+        gameboy.start();
+    });
+    let mut display = sdl::SDL::new(frame_receiver).unwrap();
+    display.start();
 }

@@ -363,7 +363,7 @@ impl Debugger {
     }
 }
 
-pub fn start() {
+pub fn start(debugger_sender: SyncSender<Target>) {
     let stdin = io::stdin();
 
     let mut input_handle = stdin.lock();

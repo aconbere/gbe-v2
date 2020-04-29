@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::shade::Shade;
 use crate::msg::{Frame, TileMap};
 use crate::register::{Registers, Registers16, IME, HaltedState};
@@ -8,13 +10,21 @@ use crate::device::interrupt::Interrupt;
 use crate::framebuffer;
 use crate::tile::Tile;
 use crate::palette::Palette;
-
 use crate::instruction::{opcode, Instruction, OpResult};
 use crate::instruction::helper::call;
+
+pub enum Target {
+    Break(HashSet<u16>),
+    Next(u16),
+    Step,
+    Paused,
+    End,
+}
 
 pub struct CPUManager {
     instructions: opcode::Fetcher,
     cpu: CPU,
+    target: Target,
 }
 
 impl CPUManager {
@@ -22,6 +32,7 @@ impl CPUManager {
         CPUManager {
             instructions: opcode::Fetcher::new(),
             cpu: CPU::new(rs, mmu),
+            target: Target::End,
         }
     }
 
@@ -65,40 +76,41 @@ impl CPUManager {
 
     pub fn next_frame(&mut self) {
         loop {
-            match self.next_instruction() {
-                Some((Mode::VBlank, Mode::OAM)) => {
-                    self.cpu.mmu.interrupt_flag.vblank = true;
-                    break;
-                },
-                Some((Mode::VRAM, Mode::HBlank)) => {
-                    self.cpu.render_line();
-                },
-                Some((Mode::HBlank, Mode::VBlank)) => {
-                    self.cpu.mmu.gpu.update_buffer();
+            self.next_instruction();
+
+            if self.cpu.registers.halted == HaltedState::Halted {
+                if self.cpu.registers.ime.flagged_on() {
+                    self.cpu.handle_interrupts();
                 }
-                _ => {},
+                self.cpu.advance_cycles(4);
+                break;
+            }
+
+            match self.target {
+                Target::Break(values) => {
+                    if values.contains(&self.cpu.registers.pc) {
+                        self.target = Target::Paused;
+                        break
+                    }
+                }
+
+                Target::Step => {
+                    self.target = Target::Paused;
+                    break
+                }
+
+                // if the next instruction is a call continue until the ret
+                Target::Next(value) => {
+                    if value == self.cpu.registers.sp {
+                        self.target = Target::Paused;
+                    }
+                    break
+                }
             }
         }
     }
 
-    pub fn next_instruction(&mut self) -> Option<(Mode, Mode)> {
-        if self.cpu.registers.halted == HaltedState::Halted {
-            if self.cpu.registers.ime.flagged_on() {
-                self.cpu.handle_interrupts();
-            }
-            self.cpu.advance_cycles(4);
-            return None
-        }
-
-        if self.cpu.registers.halted == HaltedState::HaltedNoJump {
-            if self.cpu.interrupt_available().is_some() {
-                self.cpu.registers.halted = HaltedState::None;
-            }
-
-            self.cpu.advance_cycles(4);
-            return None
-        }
-
+    pub fn next_instruction(&mut self) -> bool {
         if self.cpu.registers.ime.enabled () {
             self.cpu.handle_interrupts();
         }
@@ -110,15 +122,29 @@ impl CPUManager {
         let opcode = self.cpu.get_opcode();
         let instruction = self.instructions.fetch(opcode).unwrap();
         let result = self.cpu.execute(instruction);
-        self.cpu.advance_cycles(result.cycles)
+
+        match self.cpu.advance_cycles(result.cycles) {
+            Some((Mode::VBlank, Mode::OAM)) => {
+                self.cpu.mmu.interrupt_flag.vblank = true;
+                return false
+            },
+            Some((Mode::VRAM, Mode::HBlank)) => {
+                self.cpu.render_line();
+            },
+            Some((Mode::HBlank, Mode::VBlank)) => {
+                self.cpu.mmu.gpu.update_buffer();
+            }
+            _ => {},
+        }
+        return true
     }
 }
 
 pub struct CPU {
     pub mmu: MMU,
     pub registers: Registers,
-
     pub buffer: framebuffer::Buffer,
+    pub call_stack: Vec<u16>,
 }
 
 impl CPU {
@@ -131,7 +157,16 @@ impl CPU {
             mmu: mmu,
             registers: registers,
             buffer: framebuffer::new(),
+            call_stack: Vec::new(),
         }
+    }
+
+    pub fn push_call(&mut self, pc: u16) {
+        self.call_stack.push(pc);
+    }
+
+    pub fn pop_call(&mut self, pc: u16) {
+        self.call_stack.pop();
     }
 
     pub fn execute(&mut self, instruction: &Instruction) -> OpResult {

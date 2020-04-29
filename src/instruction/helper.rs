@@ -281,7 +281,15 @@ pub fn pop(cpu: &mut CPU, r: Registers16) {
     cpu.registers.set16(Registers16::SP, sp + 2);
 }
 
+pub struct Call {
+    function: u16,
+    from: u16
+}
+
 pub fn call(cpu: &mut CPU, n: u16) {
+    cpu.push_call(
+        cpu.registers.pc
+    );
     push(cpu, Registers16::PC);
     jump(cpu, n);
 }
