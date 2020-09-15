@@ -1,6 +1,9 @@
 use std::io;
 use std::io::{BufRead, Error, ErrorKind, stdout, Write};
 use std::str::SplitWhitespace;
+use std::sync::mpsc::Sender;
+
+use crate::cpu::Target;
 
 /// # Mini Debugger Language
 ///
@@ -242,6 +245,7 @@ pub enum Output {
     AddressList(Vec<u16>),
     Registers(Registers),
     Text(String),
+    Target(Target),
     Unit,
 }
 
@@ -309,12 +313,14 @@ impl Debugger {
                 match arg {
                     Token::Address(a) => {
                         self.set(a);
-                        Ok(Output::Unit)
+                        Ok(Output::AddressList(self.list()))
                     },
                     _ => Err(_error(format!("Invalid argument to break: {:?}", arg)))
                 }
             },
-            Token::List => Ok(Output::AddressList(self.list())),
+            Token::List => {
+                Ok(Output::AddressList(self.list()))
+            }
             Token::Print => {
                 let arg = tokens.get(1);
                 match arg {
@@ -363,7 +369,7 @@ impl Debugger {
     }
 }
 
-pub fn start(debugger_sender: SyncSender<Target>) {
+pub fn start(debugger_sender: Sender<Target>) {
     let stdin = io::stdin();
 
     let mut input_handle = stdin.lock();
@@ -376,9 +382,7 @@ pub fn start(debugger_sender: SyncSender<Target>) {
 
         match read(&mut input_handle) {
             Ok(tokens) => {
-                println!("Tokens: {:?}", tokens);
                 let output = debugger.eval(tokens).unwrap();
-                println!("output: {:?}", output);
             },
             e => println!("Error: {:?}", e)
         }

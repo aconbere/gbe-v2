@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate clap;
 
-use std::sync::mpsc::sync_channel;
+use std::sync::mpsc::{sync_channel, channel};
 use std::thread;
 
 mod sdl;
@@ -23,6 +23,7 @@ mod cartridge;
 mod msg;
 mod instruction;
 mod repl;
+mod watchlist;
 
 use crate::gameboy::Gameboy;
 
@@ -38,7 +39,7 @@ fn main() {
     ).get_matches();
 
 
-    let (debugger_sender, debugger_receiver) = sync_channel(0);
+    let (debugger_sender, debugger_receiver) = channel();
 
     if matches.is_present("DEBUG") {
         thread::spawn(|| {

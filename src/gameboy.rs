@@ -3,11 +3,11 @@ use std::io::Error;
 use crate::rom::BootRom;
 use crate::mmu::MMU;
 use crate::register::Registers;
-use crate::cpu::CPUManager;
+use crate::cpu::{CPUManager, Target};
 use crate::cartridge::Cartridge;
 use crate::msg::Frame;
 
-use std::sync::mpsc::SyncSender;
+use std::sync::mpsc::{SyncSender, Receiver};
 
 pub struct Gameboy {
     pub cpu: CPUManager,
@@ -20,6 +20,7 @@ impl Gameboy {
         game_rom: &str,
         skip_boot: bool,
         sender: SyncSender<Box<Frame>>,
+        debugger: Receiver<Target>,
     ) -> Result<Gameboy, Error> {
         let cartridge = Cartridge::read(game_rom)?;
         let boot_rom = BootRom::read(boot_rom)?;
@@ -40,6 +41,7 @@ impl Gameboy {
         let cpu = CPUManager::new(
             registers,
             mmu,
+            debugger,
         );
 
         Ok(Gameboy {
@@ -50,12 +52,9 @@ impl Gameboy {
 
     pub fn start(&mut self) {
         loop {
-            self.next_frame();
+            if self.cpu.next_frame() {
+                self.sender.send(self.cpu.frame_info()).unwrap();
+            }
         }
-    }
-
-    pub fn next_frame(&mut self) {
-        self.cpu.next_frame();
-        self.sender.send(self.cpu.frame_info()).unwrap();
     }
 }

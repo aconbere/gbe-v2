@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::sync::mpsc::Receiver;
 
 use crate::shade::Shade;
 use crate::msg::{Frame, TileMap};
@@ -13,26 +13,30 @@ use crate::palette::Palette;
 use crate::instruction::{opcode, Instruction, OpResult};
 use crate::instruction::helper::call;
 
+#[derive(Debug)]
 pub enum Target {
-    Break(HashSet<u16>),
+    Break(u16),
     Next(u16),
     Step,
     Paused,
     End,
 }
 
+
 pub struct CPUManager {
     instructions: opcode::Fetcher,
     cpu: CPU,
     target: Target,
+    debugger: Receiver<Target>,
 }
 
 impl CPUManager {
-    pub fn new(rs: Registers, mmu: MMU) -> CPUManager {
+    pub fn new(rs: Registers, mmu: MMU, debugger: Receiver<Target>) -> CPUManager {
         CPUManager {
             instructions: opcode::Fetcher::new(),
             cpu: CPU::new(rs, mmu),
             target: Target::End,
+            debugger: debugger,
         }
     }
 
@@ -74,29 +78,19 @@ impl CPUManager {
         buffer
     }
 
-    pub fn next_frame(&mut self) {
-        loop {
-            self.next_instruction();
-
-            if self.cpu.registers.halted == HaltedState::Halted {
-                if self.cpu.registers.ime.flagged_on() {
-                    self.cpu.handle_interrupts();
-                }
-                self.cpu.advance_cycles(4);
-                break;
-            }
-
+    pub fn next_frame(&mut self) -> bool {
+        while !self.next_instruction() {
             match self.target {
                 Target::Break(values) => {
                     if values.contains(&self.cpu.registers.pc) {
                         self.target = Target::Paused;
-                        break
+                        return false
                     }
                 }
 
                 Target::Step => {
                     self.target = Target::Paused;
-                    break
+                    return false
                 }
 
                 // if the next instruction is a call continue until the ret
@@ -104,13 +98,25 @@ impl CPUManager {
                     if value == self.cpu.registers.sp {
                         self.target = Target::Paused;
                     }
-                    break
+                    return false
                 }
             }
         }
+        match self.debugger.try_recv() {
+            Ok(target) => self.target = target
+        }
+        return true
     }
 
     pub fn next_instruction(&mut self) -> bool {
+        if self.cpu.registers.halted == HaltedState::Halted {
+            if self.cpu.registers.ime.flagged_on() {
+                self.cpu.handle_interrupts();
+            }
+            self.cpu.advance_cycles(4);
+            return false;
+        }
+
         if self.cpu.registers.ime.enabled () {
             self.cpu.handle_interrupts();
         }
@@ -126,7 +132,7 @@ impl CPUManager {
         match self.cpu.advance_cycles(result.cycles) {
             Some((Mode::VBlank, Mode::OAM)) => {
                 self.cpu.mmu.interrupt_flag.vblank = true;
-                return false
+                return true
             },
             Some((Mode::VRAM, Mode::HBlank)) => {
                 self.cpu.render_line();
@@ -136,7 +142,7 @@ impl CPUManager {
             }
             _ => {},
         }
-        return true
+        return false
     }
 }
 
