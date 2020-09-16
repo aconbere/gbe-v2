@@ -29,18 +29,18 @@ use crate::cpu::Target;
 ///
 /// Prints the value of a register, flag, or memory address. With no arguments prints all registers.
 ///
-/// > p PC
+/// > print PC
 /// PC: 0xCB01
 ///
-/// > p Z
+/// > print Z
 ///
 /// Z: 0
 /// 
-/// > p 0xFF80
+/// > print 0xFF80
 ///
 /// 0x010C
 ///
-/// > p
+/// > print
 ///
 /// AF: 0x010C
 /// BC: 0x0000
@@ -50,7 +50,6 @@ use crate::cpu::Target;
 /// SP: 0x1111
 /// Z:0 H:1 N:1 C:0
 /// IME: 0
-///
 ///
 /// ## step
 ///
@@ -73,7 +72,6 @@ use crate::cpu::Target;
 /// > finish
 /// PC: 0x01CD; RET
 ///
-///
 /// ## delete 
 ///
 /// Deletes a breakpoint
@@ -82,14 +80,21 @@ use crate::cpu::Target;
 /// > list
 /// 0xFF80
 
-#[derive(Debug, Clone, Copy)]
-pub enum DebuggerError {
-    InvalidFlag,
+type ParseResult<T> = std::result::Result<T, ParserError>;
+
+#[derive(Debug, Clone)]
+pub enum ParserError {
+    InvalidFlag(String),
+    InvalidCommand(String),
+    InvalidArguement(Token),
+    UnknownArgumentType(String),
     InvalidEndOfInput,
+    InvalidRegister(String),
+    InvalidHexString(String),
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum Token {
+pub enum Command {
     Break,
     List,
     Print,
@@ -98,6 +103,11 @@ pub enum Token {
     Next,
     Finish,
     Delete,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Token {
+    Command(Command),
     Address(u16),
     Register(Register),
     Flag(Flag),
@@ -120,18 +130,17 @@ pub enum State {
     Argument,
 }
 
-
-pub fn parse_flag(input: &str) -> Result<Flag, Error> {
+pub fn parse_flag(input: &str) -> ParseResult<Flag> {
     match input {
         "Z" => Ok(Flag::Z),
         "C" => Ok(Flag::C),
         "N" => Ok(Flag::N),
         "H" => Ok(Flag::H),
-        _ => Err(Error::new(ErrorKind::Other, format!("invalid flag: {}", input)))
+        _ => Err(ParserError::InvalidFlag(input.to_string()))
     }
 }
 
-pub fn parse_register(input: &str) -> Result<Register, Error> {
+pub fn parse_register(input: &str) -> ParseResult<Register> {
     match input {
         "A" => Ok(Register::A),
         "B" => Ok(Register::B),
@@ -148,7 +157,7 @@ pub fn parse_register(input: &str) -> Result<Register, Error> {
         "HL" => Ok(Register::HL),
         "SP" => Ok(Register::SP),
         "PC" => Ok(Register::PC),
-        _ => Err(Error::new(ErrorKind::Other, format!("invalid register: {}", input)))
+        _ => Err(ParserError::InvalidRegister(input.to_string())),
     }
 }
 
@@ -156,78 +165,62 @@ fn _error(error: String) -> Error {
     Error::new(ErrorKind::Other, error)
 }
 
-pub fn tok(input: &mut SplitWhitespace) -> Result<Vec<Token>, Error> {
-    _tok(input, State::Command, &Vec::new())
+fn parse_arguement(input: &str) -> ParseResult<Token> {
+    if input.starts_with("f") {
+        let flag = parse_flag(&input[1..])?;
+        Ok(Token::Flag(flag))
+    } else if input.starts_with("r") {
+        let register = parse_register(&input[1..])?;
+        Ok(Token::Register(register))
+    } else if input.starts_with("0x") {
+        match u16::from_str_radix(&input[2..], 16) {
+            Ok(register) => Ok(Token::Address(register)),
+            e => Err(ParserError::InvalidHexString(input.to_string())),
+        }
+    } else {
+        Err(ParserError::UnknownArgumentType(input.to_string()))
+    }
 }
 
-pub fn _tok(input: &mut SplitWhitespace, state: State, _output: &Vec<Token>) -> Result<Vec<Token>, Error> {
-    let mut output = _output.clone();
+fn parse_command(input: &str) -> ParseResult<Command> {
+    match input {
+        "b" | "break" => Ok(Command::Break),
+        "p" | "print" => Ok(Command::Print),
+        "l" | "list" => Ok(Command::List),
+        "r" | "run" => Ok(Command::Run),
+        "s" | "step" => Ok(Command::Step),
+        "n" | "next" => Ok(Command::Next),
+        "f" | "finish" => Ok(Command::Finish),
+        "d" | "delete" => Ok(Command::Delete),
+        _ => Err(ParserError::InvalidCommand(input.to_string()))
+    }
+}
 
+/* Takes input (stream of text split on whitespace) and cosumes that Stream turning them into a
+ * Vector of Tokens or Errors
+ */
+pub fn tok(input: &mut SplitWhitespace, output: &mut Vec<Token>) -> ParseResult<bool> {
+    _tok(input, State::Command, output)
+}
+
+pub fn _tok(input: &mut SplitWhitespace, state: State, tokens: &mut Vec<Token>) -> ParseResult<bool> {
     match input.next() {
-        None => Ok(output),
+        /* If we have nothing left in our input itterator then we are done. return our
+         * completed output */
+        None => Ok(true),
         Some(untok) => {
+            /* Take the next white space seperated string and match it */
             match state {
                 State::Argument => {
-                    if untok.starts_with("f") {
-                        let flag = parse_flag(&untok[1..])?;
-                        output.push(Token::Flag(flag));
-                        Ok(output)
-                    } else if untok.starts_with("r") {
-                        let register = parse_register(&untok[1..])?;
-                        output.push(Token::Register(register));
-                        Ok(output)
-                    } else if untok.starts_with("0x") {
-                        match u16::from_str_radix(&untok[2..], 16) {
-                            Ok(register) => {
-                                output.push(Token::Address(register));
-                                Ok(output)
-                            }
-                            e => Err(_error(format!("Invalid hex string: {} {:?}", untok, e)))
-                        }
-                    } else {
-                        Err(_error(format!("Invalid argument: {}", untok)))
-                    }
-                }
-
+                    let tok = parse_arguement(untok)?;
+                    tokens.push(tok);
+                    _tok(input, State::Argument, tokens)
+                },
                 State::Command => {
-                    match untok {
-                        "b" | "break" => {
-                            output.push(Token::Break);
-                            _tok(input, State::Argument, &output)
-                        }
-                        "p" | "print" => {
-                            output.push(Token::Print);
-                            _tok(input, State::Argument, &output)
-                        }
-                        "l" | "list" => {
-                            output.push(Token::List);
-                            Ok(output)
-                        }
-                        "r" | "run" => {
-                            output.push(Token::Run);
-                            Ok(output)
-                        }
-                        "s" | "step" => {
-                            output.push(Token::Step);
-                            Ok(output)
-                        }
-                        "n" | "next" => {
-                            output.push(Token::Next);
-                            Ok(output)
-                        }
-                        "f" | "finish" => {
-                            output.push(Token::Finish);
-                            Ok(output)
-                        }
-                        "d" | "delete" => {
-                            output.push(Token::Delete);
-                            _tok(input, State::Argument, &output)
-                        }
-
-                        _ => {
-                            Err(_error(format!("Invalid command: {}", untok)))
-                        }
-                    }
+                    let command = parse_command(untok)?;
+                    tokens.push(Token::Command(command));
+                    /* Need to handle break, print and delete which take arguments */
+                    _tok(input, State::Argument, tokens)
                 }
             }
         }
@@ -304,70 +297,75 @@ impl Debugger {
         }
     }
 
-    pub fn eval(&mut self, tokens: Vec<Token>) -> Result<Output, Error> {
-        let command = tokens[0];
+    pub fn eval(&mut self, tokens: Vec<Token>) -> ParseResult<Output> {
+        let first_token = tokens[0];
 
-        match command {
-            Token::Break => {
-                let arg = tokens[1];
-                match arg {
-                    Token::Address(a) => {
-                        self.set(a);
+        match first_token {
+            Token::Command(command) => {
+                match command {
+                    Command::Break => {
+                        let arg = tokens[1];
+                        match arg {
+                            Token::Address(a) => {
+                                self.set(a);
+                                Ok(Output::AddressList(self.list()))
+                            },
+                            _ => Err(ParserError::InvalidArguement(arg))
+                        }
+                    },
+                    Command::List => {
                         Ok(Output::AddressList(self.list()))
+                    }
+                    Command::Print => {
+                        let arg = tokens.get(1);
+
+                        match arg {
+                            Some(Token::Register(r)) => {
+                                Ok(Output::Text(self.print_register(*r)))
+                            },
+                            Some(Token::Flag(f)) => {
+                                Ok(Output::Text(self.print_flag(*f)))
+                            },
+                            Some(a) => {
+                                Err(ParserError::InvalidArguement(*a))
+                            },
+                            None => {
+                                Ok(Output::Text(self.print_all()))
+                            }
+                        }
                     },
-                    _ => Err(_error(format!("Invalid argument to break: {:?}", arg)))
-                }
-            },
-            Token::List => {
-                Ok(Output::AddressList(self.list()))
-            }
-            Token::Print => {
-                let arg = tokens.get(1);
-                match arg {
-                    Some(Token::Register(r)) => {
-                        Ok(Output::Text(self.print_register(*r)))
+                    Command::Run => {
+                        self.run();
+                        Ok(Output::Unit)
                     },
-                    Some(Token::Flag(f)) => {
-                        Ok(Output::Text(self.print_flag(*f)))
+                    Command::Step => {
+                        self.step();
+                        Ok(Output::Unit)
+                    }
+                    Command::Next => {
+                        self.next();
+                        Ok(Output::Unit)
                     },
-                    Some(_) => {
-                        Err(_error(format!("Invalid argument to print: {:?}", arg)))
-                    },
-                    None => {
-                        Ok(Output::Text(self.print_all()))
+                    Command::Finish => {
+                        self.finish();
+                        Ok(Output::Unit)
+                    }
+                    Command::Delete => {
+                        let arg = tokens[1];
+                        match arg {
+                            Token::Address(a) => {
+                                self.delete(a);
+                                Ok(Output::AddressList(self.break_points.clone()))
+                            },
+                            _ => Err(ParserError::InvalidArguement(arg))
+                        }
                     }
                 }
-            },
-            Token::Run => {
-                self.run();
-                Ok(Output::Unit)
-            },
-            Token::Step => {
-                self.step();
-                Ok(Output::Unit)
             }
-            Token::Next => {
-                self.next();
-                Ok(Output::Unit)
-            },
-            Token::Finish => {
-                self.finish();
-                Ok(Output::Unit)
-            }
-            Token::Delete => {
-                let arg = tokens[1];
-                match arg {
-                    Token::Address(a) => {
-                        self.delete(a);
-                        Ok(Output::AddressList(self.break_points.clone()))
-                    },
-                    _ => Err(_error(format!("Invalid argument to break: {:?}", arg)))
-                }
-            }
-            _ => Err(_error(format!("Invalid command: {:?}", command)))
         }
     }
 }
+
 
 pub fn start(debugger_sender: Sender<Target>) {
     let stdin = io::stdin();
@@ -395,9 +393,14 @@ fn prompt() -> String {
     "> ".to_string()
 }
 
-fn read(buffer: &mut dyn BufRead) -> Result<Vec<Token>, Error> {
+fn read(buffer: &mut dyn BufRead) -> ParseResult<Vec<Token>> {
     let mut input = String::new();
-    buffer.read_line(&mut input)?;
-
-    Ok(tok(&mut input.trim().split_whitespace())?)
+    match buffer.read_line(&mut input) {
+        Ok(_) => {
+            let mut output = &mut Vec::new();
+            tok(&mut input.trim().split_whitespace(), &mut output)?;
+            Ok(*output)
+        }
+        Err(_) => Err(ParserError::InvalidEndOfInput),
+    }
 }
