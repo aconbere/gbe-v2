@@ -1,5 +1,3 @@
-use std::sync::mpsc::Receiver;
-
 use crate::shade::Shade;
 use crate::msg::{Frame, TileMap};
 use crate::register::{Registers, Registers16, IME, HaltedState};
@@ -13,30 +11,16 @@ use crate::palette::Palette;
 use crate::instruction::{opcode, Instruction, OpResult};
 use crate::instruction::helper::call;
 
-#[derive(Debug)]
-pub enum Target {
-    Break(u16),
-    Next(u16),
-    Step,
-    Paused,
-    End,
-}
-
-
 pub struct CPUManager {
     instructions: opcode::Fetcher,
     cpu: CPU,
-    target: Target,
-    debugger: Receiver<Target>,
 }
 
 impl CPUManager {
-    pub fn new(rs: Registers, mmu: MMU, debugger: Receiver<Target>) -> CPUManager {
+    pub fn new(rs: Registers, mmu: MMU) -> CPUManager {
         CPUManager {
             instructions: opcode::Fetcher::new(),
             cpu: CPU::new(rs, mmu),
-            target: Target::End,
-            debugger: debugger,
         }
     }
 
@@ -79,32 +63,7 @@ impl CPUManager {
     }
 
     pub fn next_frame(&mut self) -> bool {
-        while !self.next_instruction() {
-            match self.target {
-                Target::Break(values) => {
-                    if values.contains(&self.cpu.registers.pc) {
-                        self.target = Target::Paused;
-                        return false
-                    }
-                }
-
-                Target::Step => {
-                    self.target = Target::Paused;
-                    return false
-                }
-
-                // if the next instruction is a call continue until the ret
-                Target::Next(value) => {
-                    if value == self.cpu.registers.sp {
-                        self.target = Target::Paused;
-                    }
-                    return false
-                }
-            }
-        }
-        match self.debugger.try_recv() {
-            Ok(target) => self.target = target
-        }
+        while !self.next_instruction() { }
         return true
     }
 

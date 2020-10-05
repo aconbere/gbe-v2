@@ -1,0 +1,78 @@
+# Mini Debugger Language
+
+## break <a16>
+
+Set a break point at a16 a 16 bit address register
+
+> break 0x0100
+
+## list
+
+Lists all set break points
+
+> list
+0x0100
+0xFF80
+
+## run
+
+Runs until a breakpoint is reached or the end of the program
+
+## print [r|f|a16]
+
+Prints the value of a register, flag, or memory address. With no arguments prints all registers.
+
+> print PC
+PC: 0xCB01
+
+> print Z
+
+Z: 0
+
+> print 0xFF80
+
+0x010C
+
+> print
+
+AF: 0x010C
+BC: 0x0000
+DE: 0x56AB
+HL: 0x1234
+PC: 0x010C
+SP: 0x1111
+Z:0 H:1 N:1 C:0
+IME: 0
+
+## step
+
+Advances to the next instruction, if a call is issued will follow the call
+
+> step
+PC: 0x01CD; NOP
+
+## next
+
+Advances to the next instruction, if it's a call will continue execution until return
+
+> next
+PC: 0x01DE; INC B
+
+## finish
+
+Advances until the end of the current function
+
+> finish
+PC: 0x01CD; RET
+
+## delete 
+
+Deletes a breakpoint
+
+> delete 0x100
+> list
+0xFF80
+
+# Wire Format
+
+The debugger functions as an external process that attaches to the main process when it's started. 

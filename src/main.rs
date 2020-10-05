@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate clap;
 
-use std::sync::mpsc::{sync_channel, channel};
+use std::sync::mpsc::{sync_channel};
 use std::thread;
 
 mod sdl;
@@ -38,27 +38,24 @@ fn main() {
         (@arg DEBUG: --debug "If true skips booting from the rom.")
     ).get_matches();
 
-
-    let (debugger_sender, debugger_receiver) = channel();
-
     if matches.is_present("DEBUG") {
-        thread::spawn(|| {
-            repl::start(debugger_sender);
+        //thread::spawn(|| {
+        //    repl::start();
+        //});
+        repl::start();
+    } else {
+        let (frame_sender, frame_receiver) = sync_channel(0);
+
+        thread::spawn(move || {
+            let mut gameboy = Gameboy::new(
+                matches.value_of("BOOT_ROM").unwrap(),
+                matches.value_of("GAME_ROM").unwrap(),
+                matches.is_present("SKIP_BOOT"),
+                frame_sender,
+            ).unwrap();
+            gameboy.start();
         });
+        let mut display = sdl::SDL::new(frame_receiver).unwrap();
+        display.start();
     }
-
-    let (frame_sender, frame_receiver) = sync_channel(0);
-
-    thread::spawn(move || {
-        let mut gameboy = Gameboy::new(
-            matches.value_of("BOOT_ROM").unwrap(),
-            matches.value_of("GAME_ROM").unwrap(),
-            matches.is_present("SKIP_BOOT"),
-            frame_sender,
-            debugger_receiver,
-        ).unwrap();
-        gameboy.start();
-    });
-    let mut display = sdl::SDL::new(frame_receiver).unwrap();
-    display.start();
 }
