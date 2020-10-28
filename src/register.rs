@@ -2,6 +2,10 @@ use super::bytes;
 use std::fmt;
 use std::fmt::Debug;
 
+pub mod watcher;
+
+use watcher::Watcher;
+
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum HaltedState {
     Halted,
@@ -31,7 +35,7 @@ impl IME {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Registers8 {
     A,
     B,
@@ -43,7 +47,7 @@ pub enum Registers8 {
     L,
 }
 
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Registers16 {
     AF,
     BC,
@@ -102,6 +106,7 @@ pub struct Registers {
     pub ime: IME,
     pub stopped: bool,
     pub halted: HaltedState,
+    pub watcher: Watcher,
 }
 
 impl Registers {
@@ -119,7 +124,8 @@ impl Registers {
             pc: 0x0000,
             ime: IME::Disabled,
             stopped: false,
-            halted: HaltedState::None
+            halted: HaltedState::None,
+            watcher: Watcher::new(),
         };
     }
 
@@ -137,7 +143,8 @@ impl Registers {
             pc: 0x0100,
             ime: IME::Disabled,
             stopped: false,
-            halted: HaltedState::None
+            halted: HaltedState::None,
+            watcher: Watcher::new(),
         };
     }
 
@@ -176,6 +183,10 @@ impl Registers {
             Registers8::H => self.h = v,
             Registers8::L => self.l = v,
         }
+
+        if self.watcher.contains8(r, v) {
+            self.halted = HaltedState::Halted;
+        }
     }
 
     pub fn set16(&mut self, r: Registers16, v: u16) {
@@ -186,6 +197,10 @@ impl Registers {
             Registers16::HL => self.set_combined(Registers8::H, Registers8::L, v),
             Registers16::PC => self.pc = v,
             Registers16::SP => self.sp = v,
+        }
+
+        if self.watcher.contains16(r, v) {
+            self.halted = HaltedState::Halted;
         }
     }
 

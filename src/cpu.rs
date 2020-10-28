@@ -76,7 +76,9 @@ impl CPUManager {
                 Some((Mode::HBlank, Mode::VBlank)) => {
                     self.cpu.mmu.gpu.update_buffer();
                 }
-                _ => {},
+                _ => {
+                    break;
+                },
             }
         }
     }

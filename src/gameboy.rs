@@ -2,7 +2,7 @@ use std::io::Error;
 
 use crate::rom::BootRom;
 use crate::mmu::MMU;
-use crate::register::Registers;
+use crate::register::{Registers, Registers8, Registers16};
 use crate::cpu::CPUManager;
 use crate::cartridge::Cartridge;
 use crate::msg::Frame;
@@ -31,11 +31,13 @@ impl Gameboy {
 
         };
 
-        let registers = if skip_boot {
+        let mut registers = if skip_boot {
             Registers::skip_boot()
         } else {
             Registers::new()
         };
+
+        registers.watcher.insert16(Registers16::PC, 0x0001);
 
         let cpu = CPUManager::new(
             registers,

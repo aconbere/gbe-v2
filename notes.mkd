@@ -1,4 +1,4 @@
-Documents:
+# Documents:
 * https://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html
 * https://blog.ryanlevick.com/DMG-01/public/book/cpu/register_data_instructions.html
 * http://marc.rawer.de/Gameboy/Docs/GBCPUman.pdf
@@ -10,3 +10,17 @@ Documents:
 * https://gekkio.fi/files/gb-docs/gbctr.pdf
 * https://realboyemulator.wordpress.com/2013/01/03/a-look-at-the-game-boy-bootstrap-let-the-fun-begin/
 * https://github.com/AntonioND/giibiiadvance/blob/master/docs/TCAGBD.pdf
+
+# WLA
+
+https://github.com/vhelin/wla-dx
+
+WLA is a crossplatform assembler used to compile blarggs tests into executable gameboy roms. Instructions for installing it are available in the project linked above.
+
+## 2020-10-28
+
+* Implemented Watcher
+* Proved that I can catch register bits
+* Maybe consider injecting a watcher into Registers
+* Then I can listen for changes there?
+* Maybe need a sender?
