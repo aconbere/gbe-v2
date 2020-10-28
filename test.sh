@@ -1,4 +1,4 @@
-pushd ../blarggs-tests/cpu_instrs/source
+pushd ../gameboy-roms/blarggs/cpu_instrs/source
 ./clean.sh
 
 # ./build.sh "03-op sp,hl" # index out of bounds: the len is 8192 but the index is 8192
@@ -18,7 +18,7 @@ pushd ../blarggs-tests/cpu_instrs/source
 popd
 
 cargo run -- \
-  --boot_rom ../gb_test_roms/DMG_ROM.bin \
-  --game_rom ../blarggs-tests/cpu_instrs/source/test.gb \
+  --boot_rom ../gameboy-roms/boot/dmg_boot.bin \
+  --game_rom ../gameboy-roms/blarggs/cpu_instrs/source/test.gb \
   --skip_boot \
   $1
