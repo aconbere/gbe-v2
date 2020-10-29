@@ -11,6 +11,7 @@ use std::sync::mpsc::Receiver;
 
 use crate::shade::Shade;
 use crate::msg::{Frame, TileMap};
+use crate::register::RPair;
 
 use anyhow;
 use rate_limiter::RateLimiter;

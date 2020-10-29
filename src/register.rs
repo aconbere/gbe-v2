@@ -6,6 +6,7 @@ pub mod watcher;
 
 use watcher::Watcher;
 
+
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum HaltedState {
     Halted,
@@ -34,6 +35,38 @@ impl IME {
         self == &IME::Queued || self == &IME::Enabled
     }
 }
+
+pub enum R {
+    R8(Registers8),
+    R16(Registers16),
+}
+
+pub enum RValue {
+    R8(u8),
+    R16(u16),
+}
+
+impl RValue {
+    pub fn get8(&self) -> u8 {
+        match &self {
+            RValue::R8(v) => *v,
+            RValue::R16(_) => panic!("can't coerce to u16 from an R8"),
+        }
+    }
+
+    pub fn get16(&self) -> u16 {
+        match &self {
+            RValue::R8(_) => panic!("can't coerce to u8 from an R16"),
+            RValue::R16(v) => *v,
+        }
+    }
+}
+
+pub enum RPair {
+    R8(Registers8, u8),
+    R16(Registers16, u16),
+}
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Registers8 {
@@ -148,27 +181,57 @@ impl Registers {
         };
     }
 
-    pub fn get8(&self, r: Registers8) -> u8 {
+    pub fn get(&self, r: R) -> RValue {
         match r {
-            Registers8::A => self.a,
-            Registers8::B => self.b,
-            Registers8::C => self.c,
-            Registers8::D => self.d,
-            Registers8::E => self.e,
-            Registers8::F => self.f,
-            Registers8::H => self.h,
-            Registers8::L => self.l,
+            R::R8(Registers8::A) => RValue::R8(self.a),
+            R::R8(Registers8::B) => RValue::R8(self.b),
+            R::R8(Registers8::C) => RValue::R8(self.c),
+            R::R8(Registers8::D) => RValue::R8(self.d),
+            R::R8(Registers8::E) => RValue::R8(self.e),
+            R::R8(Registers8::F) => RValue::R8(self.f),
+            R::R8(Registers8::H) => RValue::R8(self.h),
+            R::R8(Registers8::L) => RValue::R8(self.l),
+
+            R::R16(Registers16::AF) => RValue::R16(bytes::combine_ms_ls(self.a, self.f)),
+            R::R16(Registers16::BC) => RValue::R16(bytes::combine_ms_ls(self.b, self.c)),
+            R::R16(Registers16::DE) => RValue::R16(bytes::combine_ms_ls(self.d, self.e)),
+            R::R16(Registers16::HL) => RValue::R16(bytes::combine_ms_ls(self.h, self.l)),
+            R::R16(Registers16::PC) => RValue::R16(self.pc),
+            R::R16(Registers16::SP) => RValue::R16(self.sp),
         }
     }
+
+    pub fn get8(&self, r: Registers8) -> u8 {
+        self.get(R::R8(r)).get8()
+    }
+
     pub fn get16(&self, r: Registers16) -> u16 {
+        self.get(R::R16(r)).get16()
+    }
+
+    pub fn set(&mut self, r: RPair) {
         match r {
-            Registers16::AF => bytes::combine_ms_ls(self.a, self.f),
-            Registers16::BC => bytes::combine_ms_ls(self.b, self.c),
-            Registers16::DE => bytes::combine_ms_ls(self.d, self.e),
-            Registers16::HL => bytes::combine_ms_ls(self.h, self.l),
-            Registers16::PC => self.pc,
-            Registers16::SP => self.sp,
+            RPair::R8(Registers8::A, v) => self.a = v,
+            RPair::R8(Registers8::B, v) => self.b = v,
+            RPair::R8(Registers8::C, v) => self.c = v,
+            RPair::R8(Registers8::D, v) => self.d = v,
+            RPair::R8(Registers8::E, v) => self.e = v,
+            // least significant nibble in f is always zero
+            RPair::R8(Registers8::F, v) => self.f = v & 0xF0,
+            RPair::R8(Registers8::H, v) => self.h = v,
+            RPair::R8(Registers8::L, v) => self.l = v,
+
+            RPair::R16(Registers16::AF, v) => self.set_combined(Registers8::A, Registers8::F, v),
+            RPair::R16(Registers16::BC, v) => self.set_combined(Registers8::B, Registers8::C, v),
+            RPair::R16(Registers16::DE, v) => self.set_combined(Registers8::D, Registers8::E, v),
+            RPair::R16(Registers16::HL, v) => self.set_combined(Registers8::H, Registers8::L, v),
+            RPair::R16(Registers16::SP, v) => self.sp = v,
+            RPair::R16(Registers16::PC, v) => self.pc = v,
         }
+
+        //if self.watcher.contains8(r, v) {
+        //    self.halted = HaltedState::Halted;
+        //}
     }
 
     pub fn set8(&mut self, r: Registers8, v: u8) {
@@ -214,13 +277,13 @@ impl Registers {
 
     pub fn inc16(&mut self, r:Registers16) {
         let v = self.get16(r).wrapping_add(1);
-        self.set16(r, v);
+        self.set(RPair::R16(r, v));
     }
 
     fn set_combined(&mut self, r1: Registers8, r2: Registers8, v: u16) {
         let (ms, ls) = bytes::split_ms_ls(v);
-        self.set8(r1, ms);
-        self.set8(r2, ls);
+        self.set(RPair::R8(r1, ms));
+        self.set(RPair::R8(r2, ls));
     }
 }
 

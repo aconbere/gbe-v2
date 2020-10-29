@@ -37,7 +37,7 @@ impl Gameboy {
             Registers::new()
         };
 
-        registers.watcher.insert16(Registers16::PC, 0x0001);
+        // registers.watcher.insert16(Registers16::PC, 0x0001);
 
         let cpu = CPUManager::new(
             registers,
