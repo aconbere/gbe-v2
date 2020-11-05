@@ -92,38 +92,58 @@ impl CPUManager {
         }
     }
 
-    pub fn next_instruction(&mut self) -> CPUAction {
-        // TODO cpu.advance cycles duplicates this logic
-        // Move it there?
-        if self.cpu.registers.halted == HaltedState::Halted {
-            if self.cpu.registers.ime.flagged_on() {
-                self.cpu.handle_interrupts();
+    fn next_instruction(&mut self) -> CPUAction {
+        advance_cycles(&mut self.cpu, &self.instructions)
+    }
+}
+
+fn get_instruction<'a>(instructions: &'a opcode::Fetcher, opcode: u16) -> &'a Instruction {
+    instructions.fetch(opcode).unwrap()
+}
+
+fn advance_cycles(cpu: &mut CPU, instructions: &opcode::Fetcher) -> CPUAction {
+    match cpu.registers.halted {
+        HaltedState::None => {
+            if cpu.registers.ime.enabled () {
+                cpu.handle_interrupts();
             }
-            self.cpu.advance_cycles(4);
+
+            if cpu.registers.ime.queued() {
+                cpu.registers.ime = IME::Enabled;
+            }
+
+            let opcode = cpu.get_opcode();
+            let instruction = get_instruction(instructions, opcode);
+
+            let args = cpu.get_arguments(instruction);
+            let result = instruction.call(cpu, args);
+
+            match cpu.mmu.lcd.advance_cycles(result.cycles) {
+                Some((Mode::VBlank, Mode::OAM)) => CPUAction::DMA,
+                Some((Mode::VRAM, Mode::HBlank)) => CPUAction::RenderLine,
+                Some((Mode::HBlank, Mode::VBlank)) => CPUAction::UpdateGPUBuffer,
+                _ => CPUAction::Continue,
+            }
+        },
+        HaltedState::Halted => {
+            if cpu.registers.ime.flagged_on() {
+                cpu.handle_interrupts();
+            }
+            cpu.advance_timer(4);
+            CPUAction::Continue
+        },
+        HaltedState::HaltedNoJump => {
+            if cpu.interrupt_available().is_some() {
+                cpu.registers.halted = HaltedState::None;
+            }
+
+            cpu.advance_timer(4);
             return CPUAction::Continue
         }
-
-        if self.cpu.registers.halted == HaltedState::HaltedNoJump {
-            if self.cpu.interrupt_available().is_some() {
-                self.cpu.registers.halted = HaltedState::None;
-            }
-
-            self.cpu.advance_cycles(4);
+        // halt bug unaccounted for
+        HaltedState::HaltBug => {
             return CPUAction::Continue
         }
-
-        if self.cpu.registers.ime.enabled () {
-            self.cpu.handle_interrupts();
-        }
-
-        if self.cpu.registers.ime.queued() {
-            self.cpu.registers.ime = IME::Enabled;
-        }
-
-        let opcode = self.cpu.get_opcode();
-        let instruction = self.instructions.fetch(opcode).unwrap();
-        let result = self.cpu.execute(instruction);
-        self.cpu.advance_cycles(result.cycles)
     }
 }
 
@@ -251,26 +271,12 @@ impl CPU {
         }
     }
 
-
-    fn advance_cycles(&mut self, cycles: u8) -> CPUAction {
+    fn advance_timer(&mut self, cycles: u8) {
         if self.mmu.timer.advance_cycles(cycles) {
             self.mmu.interrupt_flag.timer = true;
         }
-
-        // If we are halted skip advancing the cpu clock
-        // else advance and return change in LCD clock state
-        // as a CPU Action
-        if self.registers.halted != HaltedState::None {
-            CPUAction::Continue
-        } else {
-            match self.mmu.lcd.advance_cycles(cycles) {
-                Some((Mode::VBlank, Mode::OAM)) => CPUAction::DMA,
-                Some((Mode::VRAM, Mode::HBlank)) => CPUAction::RenderLine,
-                Some((Mode::HBlank, Mode::VBlank)) => CPUAction::UpdateGPUBuffer,
-                _ => CPUAction::Continue,
-            }
-        }
     }
+
 
     pub fn stop(&mut self) {
         self.registers.stopped = true;
