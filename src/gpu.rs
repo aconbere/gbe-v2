@@ -124,6 +124,8 @@ impl GPU {
         }
     }
 
+    /* Updates the internal gpu memory representing a frame
+     */
     pub fn update_buffer(&mut self) {
         for y in 0..32 {
             for x in 0..32 {

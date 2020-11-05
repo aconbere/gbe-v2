@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use super::{Registers8, Registers16};
+use super::{Registers8, Registers16, RPair};
 
 pub struct Watcher {
     pub a: HashSet<u8>,
@@ -17,6 +17,8 @@ pub struct Watcher {
     pub hl: HashSet<u16>,
     pub sp: HashSet<u16>,
     pub pc: HashSet<u16>,
+
+    pub breaks: Vec<RPair>
 }
 
 impl Watcher {
@@ -36,78 +38,71 @@ impl Watcher {
             hl: HashSet::new(),
             sp: HashSet::new(),
             pc: HashSet::new(),
+
+            breaks: Vec::new(),
         }
     }
 
-    pub fn insert8(&mut self, r: Registers8, v: u8) -> bool {
+    pub fn add_break_point(&mut self, r: RPair) -> bool {
         match r {
-            Registers8::A => self.a.insert(v),
-            Registers8::B => self.b.insert(v),
-            Registers8::C => self.c.insert(v),
-            Registers8::D => self.d.insert(v),
-            Registers8::E => self.e.insert(v),
-            Registers8::F => self.f.insert(v),
-            Registers8::H => self.h.insert(v),
-            Registers8::L => self.l.insert(v),
+            RPair::R8(Registers8::A, v) => self.a.insert(v),
+            RPair::R8(Registers8::B, v) => self.b.insert(v),
+            RPair::R8(Registers8::C, v) => self.c.insert(v),
+            RPair::R8(Registers8::D, v) => self.d.insert(v),
+            RPair::R8(Registers8::E, v) => self.e.insert(v),
+            RPair::R8(Registers8::F, v) => self.f.insert(v),
+            RPair::R8(Registers8::H, v) => self.h.insert(v),
+            RPair::R8(Registers8::L, v) => self.l.insert(v),
+            RPair::R16(Registers16::AF, v) => self.af.insert(v),
+            RPair::R16(Registers16::BC, v) => self.bc.insert(v),
+            RPair::R16(Registers16::DE, v) => self.de.insert(v),
+            RPair::R16(Registers16::HL, v) => self.hl.insert(v),
+            RPair::R16(Registers16::PC, v) => self.pc.insert(v),
+            RPair::R16(Registers16::SP, v) => self.sp.insert(v),
         }
     }
 
-    pub fn insert16(&mut self, r: Registers16, v: u16) -> bool {
-        match r {
-            Registers16::AF => self.af.insert(v),
-            Registers16::BC => self.bc.insert(v),
-            Registers16::DE => self.de.insert(v),
-            Registers16::HL => self.hl.insert(v),
-            Registers16::PC => self.pc.insert(v),
-            Registers16::SP => self.sp.insert(v),
+    pub fn check(&mut self, r: RPair) -> bool {
+        let contains = match r {
+            RPair::R8(Registers8::A, v) => self.a.contains(&v),
+            RPair::R8(Registers8::B, v) => self.b.contains(&v),
+            RPair::R8(Registers8::C, v) => self.c.contains(&v),
+            RPair::R8(Registers8::D, v) => self.d.contains(&v),
+            RPair::R8(Registers8::E, v) => self.e.contains(&v),
+            RPair::R8(Registers8::F, v) => self.f.contains(&v),
+            RPair::R8(Registers8::H, v) => self.h.contains(&v),
+            RPair::R8(Registers8::L, v) => self.l.contains(&v),
+            RPair::R16(Registers16::AF, v) => self.af.contains(&v),
+            RPair::R16(Registers16::BC, v) => self.bc.contains(&v),
+            RPair::R16(Registers16::DE, v) => self.de.contains(&v),
+            RPair::R16(Registers16::HL, v) => self.hl.contains(&v),
+            RPair::R16(Registers16::PC, v) => self.pc.contains(&v),
+            RPair::R16(Registers16::SP, v) => self.sp.contains(&v),
+        };
+
+        if contains {
+            self.breaks.push(r);
         }
+
+        contains
     }
 
-    pub fn contains8(&mut self, r: Registers8, v: u8) -> bool {
+    pub fn remove_break_point(&mut self, r: RPair) -> bool {
         match r {
-            Registers8::A => self.a.contains(&v),
-            Registers8::B => self.b.contains(&v),
-            Registers8::C => self.c.contains(&v),
-            Registers8::D => self.d.contains(&v),
-            Registers8::E => self.e.contains(&v),
-            Registers8::F => self.f.contains(&v),
-            Registers8::H => self.h.contains(&v),
-            Registers8::L => self.l.contains(&v),
-        }
-    }
-
-    pub fn contains16(&mut self, r: Registers16, v: u16) -> bool {
-        match r {
-            Registers16::AF => self.af.contains(&v),
-            Registers16::BC => self.bc.contains(&v),
-            Registers16::DE => self.de.contains(&v),
-            Registers16::HL => self.hl.contains(&v),
-            Registers16::PC => self.pc.contains(&v),
-            Registers16::SP => self.sp.contains(&v),
-        }
-    }
-
-    pub fn remove8(&mut self, r: Registers8, v: u8) -> bool {
-        match r {
-            Registers8::A => self.a.remove(&v),
-            Registers8::B => self.b.remove(&v),
-            Registers8::C => self.c.remove(&v),
-            Registers8::D => self.d.remove(&v),
-            Registers8::E => self.e.remove(&v),
-            Registers8::F => self.f.remove(&v),
-            Registers8::H => self.h.remove(&v),
-            Registers8::L => self.l.remove(&v),
-        }
-    }
-
-    pub fn remove16(&mut self, r: Registers16, v: u16) -> bool {
-        match r {
-            Registers16::AF => self.af.remove(&v),
-            Registers16::BC => self.bc.remove(&v),
-            Registers16::DE => self.de.remove(&v),
-            Registers16::HL => self.hl.remove(&v),
-            Registers16::PC => self.pc.remove(&v),
-            Registers16::SP => self.sp.remove(&v),
+            RPair::R8(Registers8::A, v) => self.a.remove(&v),
+            RPair::R8(Registers8::B, v) => self.b.remove(&v),
+            RPair::R8(Registers8::C, v) => self.c.remove(&v),
+            RPair::R8(Registers8::D, v) => self.d.remove(&v),
+            RPair::R8(Registers8::E, v) => self.e.remove(&v),
+            RPair::R8(Registers8::F, v) => self.f.remove(&v),
+            RPair::R8(Registers8::H, v) => self.h.remove(&v),
+            RPair::R8(Registers8::L, v) => self.l.remove(&v),
+            RPair::R16(Registers16::AF, v) => self.af.remove(&v),
+            RPair::R16(Registers16::BC, v) => self.bc.remove(&v),
+            RPair::R16(Registers16::DE, v) => self.de.remove(&v),
+            RPair::R16(Registers16::HL, v) => self.hl.remove(&v),
+            RPair::R16(Registers16::PC, v) => self.pc.remove(&v),
+            RPair::R16(Registers16::SP, v) => self.sp.remove(&v),
         }
     }
 }

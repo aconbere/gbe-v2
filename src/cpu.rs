@@ -12,6 +12,13 @@ use crate::palette::Palette;
 use crate::instruction::{opcode, Instruction, OpResult};
 use crate::instruction::helper::call;
 
+enum CPUAction {
+    DMA,
+    RenderLine,
+    UpdateGPUBuffer,
+    Continue,
+}
+
 pub struct CPUManager {
     instructions: opcode::Fetcher,
     cpu: CPU,
@@ -65,31 +72,35 @@ impl CPUManager {
 
     pub fn next_frame(&mut self) {
         loop {
-            match self.next_instruction() {
-                Some((Mode::VBlank, Mode::OAM)) => {
+            let action = self.next_instruction();
+
+            match action {
+                // We've finished VBlank and have moved to OAM
+                // Now is the time to access DMA
+                // Halt the loop and start over
+                CPUAction::DMA => {
                     self.cpu.mmu.interrupt_flag.vblank = true;
                     break;
                 },
-                Some((Mode::VRAM, Mode::HBlank)) => {
-                    self.cpu.render_line();
-                },
-                Some((Mode::HBlank, Mode::VBlank)) => {
-                    self.cpu.mmu.gpu.update_buffer();
-                }
-                _ => {
-                    break;
-                },
+                CPUAction::RenderLine => { self.cpu.render_line(); },
+                // GPU is ready to have the frame buffer updated
+                CPUAction::UpdateGPUBuffer => { self.cpu.mmu.gpu.update_buffer(); },
+
+                // In all other cases we just continue looping
+                CPUAction::Continue => {},
             }
         }
     }
 
-    pub fn next_instruction(&mut self) -> Option<(Mode, Mode)> {
+    pub fn next_instruction(&mut self) -> CPUAction {
+        // TODO cpu.advance cycles duplicates this logic
+        // Move it there?
         if self.cpu.registers.halted == HaltedState::Halted {
             if self.cpu.registers.ime.flagged_on() {
                 self.cpu.handle_interrupts();
             }
             self.cpu.advance_cycles(4);
-            return None
+            return CPUAction::Continue
         }
 
         if self.cpu.registers.halted == HaltedState::HaltedNoJump {
@@ -98,7 +109,7 @@ impl CPUManager {
             }
 
             self.cpu.advance_cycles(4);
-            return None
+            return CPUAction::Continue
         }
 
         if self.cpu.registers.ime.enabled () {
@@ -240,17 +251,25 @@ impl CPU {
         }
     }
 
-    pub fn advance_cycles(&mut self, cycles: u8) -> Option<(Mode, Mode)> {
+
+    fn advance_cycles(&mut self, cycles: u8) -> CPUAction {
         if self.mmu.timer.advance_cycles(cycles) {
             self.mmu.interrupt_flag.timer = true;
         }
 
-        if self.registers.halted == HaltedState::None {
-            self.mmu.lcd.advance_cycles(cycles)
+        // If we are halted skip advancing the cpu clock
+        // else advance and return change in LCD clock state
+        // as a CPU Action
+        if self.registers.halted != HaltedState::None {
+            CPUAction::Continue
         } else {
-            None
+            match self.mmu.lcd.advance_cycles(cycles) {
+                Some((Mode::VBlank, Mode::OAM)) => CPUAction::DMA,
+                Some((Mode::VRAM, Mode::HBlank)) => CPUAction::RenderLine,
+                Some((Mode::HBlank, Mode::VBlank)) => CPUAction::UpdateGPUBuffer,
+                _ => CPUAction::Continue,
+            }
         }
-
     }
 
     pub fn stop(&mut self) {

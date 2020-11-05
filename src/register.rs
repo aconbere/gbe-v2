@@ -228,10 +228,6 @@ impl Registers {
             RPair::R16(Registers16::SP, v) => self.sp = v,
             RPair::R16(Registers16::PC, v) => self.pc = v,
         }
-
-        //if self.watcher.contains8(r, v) {
-        //    self.halted = HaltedState::Halted;
-        //}
     }
 
     pub fn set8(&mut self, r: Registers8, v: u8) {
@@ -246,10 +242,6 @@ impl Registers {
             Registers8::H => self.h = v,
             Registers8::L => self.l = v,
         }
-
-        if self.watcher.contains8(r, v) {
-            self.halted = HaltedState::Halted;
-        }
     }
 
     pub fn set16(&mut self, r: Registers16, v: u16) {
@@ -260,10 +252,6 @@ impl Registers {
             Registers16::HL => self.set_combined(Registers8::H, Registers8::L, v),
             Registers16::PC => self.pc = v,
             Registers16::SP => self.sp = v,
-        }
-
-        if self.watcher.contains16(r, v) {
-            self.halted = HaltedState::Halted;
         }
     }
 
