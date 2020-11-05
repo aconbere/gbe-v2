@@ -2,16 +2,18 @@ use std::io::Error;
 
 use crate::rom::BootRom;
 use crate::mmu::MMU;
-use crate::register::{Registers, Registers8, Registers16};
-use crate::cpu::CPUManager;
+use crate::register::Registers; 
+use crate::cpu::{next_frame, CPU};
 use crate::cartridge::Cartridge;
 use crate::msg::Frame;
+use crate::instruction::opcode;
 
 use std::sync::mpsc::SyncSender;
 
 pub struct Gameboy {
-    pub cpu: CPUManager,
     sender: SyncSender<Box<Frame>>,
+    cpu: CPU,
+    instructions: opcode::Fetcher,
 }
 
 impl Gameboy {
@@ -31,27 +33,24 @@ impl Gameboy {
 
         };
 
-        let mut registers = if skip_boot {
+        let registers = if skip_boot {
             Registers::skip_boot()
         } else {
             Registers::new()
         };
 
-        // registers.watcher.insert16(Registers16::PC, 0x0001);
-
-        let cpu = CPUManager::new(
-            registers,
-            mmu,
-        );
+        let instructions = opcode::Fetcher::new();
+        let cpu = CPU::new(registers, mmu);
 
         Ok(Gameboy {
             cpu: cpu,
             sender: sender,
+            instructions: instructions,
         })
     }
 
     pub fn next_frame(&mut self) {
-        self.cpu.next_frame();
-        self.sender.send(self.cpu.frame_info()).unwrap();
+        let frame = next_frame(&mut self.cpu, &self.instructions);
+        self.sender.send(frame).unwrap();
     }
 }

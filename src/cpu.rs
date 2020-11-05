@@ -9,7 +9,7 @@ use crate::framebuffer;
 use crate::tile::Tile;
 use crate::palette::Palette;
 
-use crate::instruction::{opcode, Instruction, OpResult};
+use crate::instruction::{opcode, Instruction};
 use crate::instruction::helper::call;
 
 enum CPUAction {
@@ -19,82 +19,76 @@ enum CPUAction {
     Continue,
 }
 
-pub struct CPUManager {
-    instructions: opcode::Fetcher,
-    cpu: CPU,
+pub fn frame_info(cpu: &CPU) -> Box<Frame> {
+    Box::new(Frame {
+        main: cpu.buffer,
+        tiles: draw_tiles(cpu),
+        tile_map: draw_tile_map(cpu),
+    })
 }
 
-impl CPUManager {
-    pub fn new(rs: Registers, mmu: MMU) -> CPUManager {
-        CPUManager {
-            instructions: opcode::Fetcher::new(),
-            cpu: CPU::new(rs, mmu),
+fn draw_tile(buffer: &mut [[Shade;256];96], origin_x: usize, origin_y: usize, tile: Tile, palette: Palette) {
+    for y in 0..8 as usize {
+        for x in 0..8 as usize {
+            let pixel = tile.data[y][x];
+            let shade = palette.map(pixel);
+            buffer[origin_y + y][origin_x + x] = shade;
+        }
+    }
+}
+
+fn draw_tile_map(cpu: &CPU) -> TileMap {
+    TileMap {
+        palette: cpu.mmu.lcd.bg_palette,
+        pixels: cpu.mmu.gpu.buffer,
+        scroll_x: cpu.mmu.lcd.scroll_x,
+        scroll_y: cpu.mmu.lcd.scroll_y,
+    }
+}
+
+fn draw_tiles(cpu: &CPU) -> [[Shade;256];96] {
+    let mut buffer = [[Shade::White;256];96];
+
+    // 12 rows of tiles
+    for iy in 0..12 {
+        // read across for 32 tiles per row (256 pixels)
+        for ix in 0..32 {
+            let tile_index = (iy * 32) + ix;
+            let tile = cpu.mmu.gpu.vram.tile_set[tile_index];
+            draw_tile(
+                &mut buffer,
+                ix * 8,
+                iy * 8,
+                tile,
+                cpu.mmu.lcd.bg_palette,
+            );
+        }
+    }
+    buffer
+}
+
+pub fn next_frame(mut cpu: &mut CPU, instructions: &opcode::Fetcher) -> Box<Frame> {
+    loop {
+        let action = advance_cycles(&mut cpu, &instructions);
+
+        match action {
+            // We've finished VBlank and have moved to OAM
+            // Now is the time to access DMA
+            // Halt the loop and start over
+            CPUAction::DMA => {
+                cpu.mmu.interrupt_flag.vblank = true;
+                break;
+            },
+            CPUAction::RenderLine => { cpu.render_line(); },
+            // GPU is ready to have the frame buffer updated
+            CPUAction::UpdateGPUBuffer => { cpu.mmu.gpu.update_buffer(); },
+
+            // In all other cases we just continue looping
+            CPUAction::Continue => {},
         }
     }
 
-    pub fn frame_info(&self) -> Box<Frame> {
-        Box::new(Frame {
-            main: self.cpu.buffer,
-            tiles: self.draw_tiles(),
-            tile_map: self.draw_tile_map(),
-        })
-    }
-
-    pub fn draw_tile_map(&self) -> TileMap {
-        TileMap {
-            palette: self.cpu.mmu.lcd.bg_palette,
-            pixels: self.cpu.mmu.gpu.buffer,
-            scroll_x: self.cpu.mmu.lcd.scroll_x,
-            scroll_y: self.cpu.mmu.lcd.scroll_y,
-        }
-    }
-
-    fn draw_tiles(&self) -> [[Shade;256];96] {
-        let mut buffer = [[Shade::White;256];96];
-
-        // 12 rows of tiles
-        for iy in 0..12 {
-            // read across for 32 tiles per row (256 pixels)
-            for ix in 0..32 {
-                let tile_index = (iy * 32) + ix;
-                let tile = self.cpu.mmu.gpu.vram.tile_set[tile_index];
-                draw_tile(
-                    &mut buffer,
-                    ix * 8,
-                    iy * 8,
-                    tile,
-                    self.cpu.mmu.lcd.bg_palette,
-                );
-            }
-        }
-        buffer
-    }
-
-    pub fn next_frame(&mut self) {
-        loop {
-            let action = self.next_instruction();
-
-            match action {
-                // We've finished VBlank and have moved to OAM
-                // Now is the time to access DMA
-                // Halt the loop and start over
-                CPUAction::DMA => {
-                    self.cpu.mmu.interrupt_flag.vblank = true;
-                    break;
-                },
-                CPUAction::RenderLine => { self.cpu.render_line(); },
-                // GPU is ready to have the frame buffer updated
-                CPUAction::UpdateGPUBuffer => { self.cpu.mmu.gpu.update_buffer(); },
-
-                // In all other cases we just continue looping
-                CPUAction::Continue => {},
-            }
-        }
-    }
-
-    fn next_instruction(&mut self) -> CPUAction {
-        advance_cycles(&mut self.cpu, &self.instructions)
-    }
+    frame_info(cpu)
 }
 
 fn get_instruction<'a>(instructions: &'a opcode::Fetcher, opcode: u16) -> &'a Instruction {
@@ -165,11 +159,6 @@ impl CPU {
             registers: registers,
             buffer: framebuffer::new(),
         }
-    }
-
-    pub fn execute(&mut self, instruction: &Instruction) -> OpResult {
-        let args = self.get_arguments(instruction);
-        instruction.call(self, args)
     }
 
     fn get_arguments(&mut self, instruction: &Instruction) -> u16 {
@@ -311,15 +300,5 @@ impl CPU {
         let v1 = self.advance_pc();
         let v2 = self.advance_pc();
         bytes::combine_ms_ls(v2, v1)
-    }
-}
-
-fn draw_tile(buffer: &mut [[Shade;256];96], origin_x: usize, origin_y: usize, tile: Tile, palette: Palette) {
-    for y in 0..8 as usize {
-        for x in 0..8 as usize {
-            let pixel = tile.data[y][x];
-            let shade = palette.map(pixel);
-            buffer[origin_y + y][origin_x + x] = shade;
-        }
     }
 }
