@@ -3,22 +3,23 @@ use std::collections::HashSet;
 use super::{Registers8, Registers16, RPair};
 
 pub struct Watcher {
-    pub a: HashSet<u8>,
-    pub b: HashSet<u8>,
-    pub c: HashSet<u8>,
-    pub d: HashSet<u8>,
-    pub e: HashSet<u8>,
-    pub f: HashSet<u8>,
-    pub h: HashSet<u8>,
-    pub l: HashSet<u8>,
-    pub af: HashSet<u16>,
-    pub bc: HashSet<u16>,
-    pub de: HashSet<u16>,
-    pub hl: HashSet<u16>,
-    pub sp: HashSet<u16>,
-    pub pc: HashSet<u16>,
+    a: HashSet<u8>,
+    b: HashSet<u8>,
+    c: HashSet<u8>,
+    d: HashSet<u8>,
+    e: HashSet<u8>,
+    f: HashSet<u8>,
+    h: HashSet<u8>,
+    l: HashSet<u8>,
+    af: HashSet<u16>,
+    bc: HashSet<u16>,
+    de: HashSet<u16>,
+    hl: HashSet<u16>,
+    sp: HashSet<u16>,
+    pc: HashSet<u16>,
 
-    pub breaks: Vec<RPair>
+    breaks: Vec<RPair>,
+    triggered: bool,
 }
 
 impl Watcher {
@@ -40,10 +41,11 @@ impl Watcher {
             pc: HashSet::new(),
 
             breaks: Vec::new(),
+            triggered: false,
         }
     }
 
-    pub fn add_break_point(&mut self, r: RPair) -> bool {
+    pub fn set_break_point(&mut self, r: RPair) -> bool {
         match r {
             RPair::R8(Registers8::A, v) => self.a.insert(v),
             RPair::R8(Registers8::B, v) => self.b.insert(v),
@@ -82,6 +84,7 @@ impl Watcher {
 
         if contains {
             self.breaks.push(r);
+            self.triggered = true;
         }
 
         contains
@@ -104,5 +107,14 @@ impl Watcher {
             RPair::R16(Registers16::PC, v) => self.pc.remove(&v),
             RPair::R16(Registers16::SP, v) => self.sp.remove(&v),
         }
+    }
+
+    pub fn triggered(&self) -> bool {
+        return self.triggered
+    }
+
+    pub fn clear(&mut self) {
+        self.breaks.clear();
+        self.triggered = false;
     }
 }

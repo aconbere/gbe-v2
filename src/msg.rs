@@ -2,6 +2,11 @@ use crate::shade::Shade;
 use crate::pixel::Pixel;
 use crate::palette::Palette;
 
+pub enum Msg {
+    Frame(Box<Frame>),
+    Debug,
+}
+
 pub struct TileMap {
     pub scroll_x: u8,
     pub scroll_y: u8,

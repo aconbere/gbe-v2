@@ -10,8 +10,7 @@ use sdl2::rect::Rect;
 use std::sync::mpsc::Receiver;
 
 use crate::shade::Shade;
-use crate::msg::{Frame, TileMap};
-use crate::register::RPair;
+use crate::msg::{Msg, Frame, TileMap};
 
 use anyhow;
 use rate_limiter::RateLimiter;
@@ -29,11 +28,11 @@ pub struct SDL {
     state: State,
     canvas: Canvas<Window>,
     sdl_context: sdl2::Sdl,
-    frames_channel: Receiver<Box<Frame>>,
+    frames_channel: Receiver<Msg>,
 }
 
 impl SDL {
-    pub fn new(frames_channel: Receiver<Box<Frame>>) -> anyhow::Result<SDL> {
+    pub fn new(frames_channel: Receiver<Msg>) -> anyhow::Result<SDL> {
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
 
@@ -58,7 +57,7 @@ impl SDL {
     /* For each pixel in the framebuffer render the palette shade into a point of
      * a specific color on the canvas.
      */
-    pub fn draw_frame(&mut self, origin_x:i32, origin_y: i32, frame: [[Shade;160];144]) {
+    pub fn draw_frame(&mut self, origin_x:i32, origin_y:i32, frame:[[Shade;160];144]) {
         self.canvas.set_draw_color(Color::RGBA(255, 0, 0, 255));
         self.canvas.draw_rect(Rect::new(origin_x, origin_y, 162, 144)).unwrap();
 
@@ -137,13 +136,19 @@ impl SDL {
         'mainloop: loop {
             match self.state {
                 State::Running => {
-                    let frame = self.frames_channel.recv().unwrap();
+                    let msg = self.frames_channel.recv().unwrap();
 
-                    self.draw_frame(0,0, frame.main);
-                    self.draw_tile_map(160*SCALE as i32, 0, frame.tile_map);
-                    self.draw_tiles(160*SCALE as i32, 256, frame.tiles);
+                    match msg {
+                        Msg::Frame(frame) => {
+                            self.draw_frame(0,0, frame.main);
+                            self.draw_tile_map(160*SCALE as i32, 0, frame.tile_map);
+                            self.draw_tiles(160*SCALE as i32, 256, frame.tiles);
 
-                    self.canvas.present();
+                            self.canvas.present();
+                        },
+                        Msg::Debug => {
+                        }
+                    }
                 }
             }
 

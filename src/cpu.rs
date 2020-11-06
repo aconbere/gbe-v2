@@ -8,137 +8,19 @@ use crate::device::interrupt::Interrupt;
 use crate::framebuffer;
 use crate::tile::Tile;
 use crate::palette::Palette;
+use crate::msg::Msg;
 
 use crate::instruction::{opcode, Instruction};
 use crate::instruction::helper::call;
+
+use std::sync::mpsc::SyncSender;
 
 enum CPUAction {
     DMA,
     RenderLine,
     UpdateGPUBuffer,
     Continue,
-}
-
-pub fn frame_info(cpu: &CPU) -> Box<Frame> {
-    Box::new(Frame {
-        main: cpu.buffer,
-        tiles: draw_tiles(cpu),
-        tile_map: draw_tile_map(cpu),
-    })
-}
-
-fn draw_tile(buffer: &mut [[Shade;256];96], origin_x: usize, origin_y: usize, tile: Tile, palette: Palette) {
-    for y in 0..8 as usize {
-        for x in 0..8 as usize {
-            let pixel = tile.data[y][x];
-            let shade = palette.map(pixel);
-            buffer[origin_y + y][origin_x + x] = shade;
-        }
-    }
-}
-
-fn draw_tile_map(cpu: &CPU) -> TileMap {
-    TileMap {
-        palette: cpu.mmu.lcd.bg_palette,
-        pixels: cpu.mmu.gpu.buffer,
-        scroll_x: cpu.mmu.lcd.scroll_x,
-        scroll_y: cpu.mmu.lcd.scroll_y,
-    }
-}
-
-fn draw_tiles(cpu: &CPU) -> [[Shade;256];96] {
-    let mut buffer = [[Shade::White;256];96];
-
-    // 12 rows of tiles
-    for iy in 0..12 {
-        // read across for 32 tiles per row (256 pixels)
-        for ix in 0..32 {
-            let tile_index = (iy * 32) + ix;
-            let tile = cpu.mmu.gpu.vram.tile_set[tile_index];
-            draw_tile(
-                &mut buffer,
-                ix * 8,
-                iy * 8,
-                tile,
-                cpu.mmu.lcd.bg_palette,
-            );
-        }
-    }
-    buffer
-}
-
-pub fn next_frame(mut cpu: &mut CPU, instructions: &opcode::Fetcher) -> Box<Frame> {
-    loop {
-        let action = advance_cycles(&mut cpu, &instructions);
-
-        match action {
-            // We've finished VBlank and have moved to OAM
-            // Now is the time to access DMA
-            // Halt the loop and start over
-            CPUAction::DMA => {
-                cpu.mmu.interrupt_flag.vblank = true;
-                break;
-            },
-            CPUAction::RenderLine => { cpu.render_line(); },
-            // GPU is ready to have the frame buffer updated
-            CPUAction::UpdateGPUBuffer => { cpu.mmu.gpu.update_buffer(); },
-
-            // In all other cases we just continue looping
-            CPUAction::Continue => {},
-        }
-    }
-
-    frame_info(cpu)
-}
-
-fn get_instruction<'a>(instructions: &'a opcode::Fetcher, opcode: u16) -> &'a Instruction {
-    instructions.fetch(opcode).unwrap()
-}
-
-fn advance_cycles(cpu: &mut CPU, instructions: &opcode::Fetcher) -> CPUAction {
-    match cpu.registers.halted {
-        HaltedState::None => {
-            if cpu.registers.ime.enabled () {
-                cpu.handle_interrupts();
-            }
-
-            if cpu.registers.ime.queued() {
-                cpu.registers.ime = IME::Enabled;
-            }
-
-            let opcode = cpu.get_opcode();
-            let instruction = get_instruction(instructions, opcode);
-
-            let args = cpu.get_arguments(instruction);
-            let result = instruction.call(cpu, args);
-
-            match cpu.mmu.lcd.advance_cycles(result.cycles) {
-                Some((Mode::VBlank, Mode::OAM)) => CPUAction::DMA,
-                Some((Mode::VRAM, Mode::HBlank)) => CPUAction::RenderLine,
-                Some((Mode::HBlank, Mode::VBlank)) => CPUAction::UpdateGPUBuffer,
-                _ => CPUAction::Continue,
-            }
-        },
-        HaltedState::Halted => {
-            if cpu.registers.ime.flagged_on() {
-                cpu.handle_interrupts();
-            }
-            cpu.advance_timer(4);
-            CPUAction::Continue
-        },
-        HaltedState::HaltedNoJump => {
-            if cpu.interrupt_available().is_some() {
-                cpu.registers.halted = HaltedState::None;
-            }
-
-            cpu.advance_timer(4);
-            return CPUAction::Continue
-        }
-        // halt bug unaccounted for
-        HaltedState::HaltBug => {
-            return CPUAction::Continue
-        }
-    }
+    Debug,
 }
 
 pub struct CPU {
@@ -200,7 +82,7 @@ impl CPU {
         }
     }
 
-    pub fn push_pc(&mut self, address: u16, value: u8) {
+    pub fn _push_pc(&mut self, address: u16, value: u8) {
         self.registers.set16(Registers16::PC, address);
         self.mmu.set(address, value);
     }
@@ -302,3 +184,138 @@ impl CPU {
         bytes::combine_ms_ls(v2, v1)
     }
 }
+
+pub fn frame_info(cpu: &CPU) -> Box<Frame> {
+    Box::new(Frame {
+        main: cpu.buffer,
+        tiles: draw_tiles(cpu),
+        tile_map: draw_tile_map(cpu),
+    })
+}
+
+fn draw_tile(buffer: &mut [[Shade;256];96], origin_x: usize, origin_y: usize, tile: Tile, palette: Palette) {
+    for y in 0..8 as usize {
+        for x in 0..8 as usize {
+            let pixel = tile.data[y][x];
+            let shade = palette.map(pixel);
+            buffer[origin_y + y][origin_x + x] = shade;
+        }
+    }
+}
+
+fn draw_tile_map(cpu: &CPU) -> TileMap {
+    TileMap {
+        palette: cpu.mmu.lcd.bg_palette,
+        pixels: cpu.mmu.gpu.buffer,
+        scroll_x: cpu.mmu.lcd.scroll_x,
+        scroll_y: cpu.mmu.lcd.scroll_y,
+    }
+}
+
+fn draw_tiles(cpu: &CPU) -> [[Shade;256];96] {
+    let mut buffer = [[Shade::White;256];96];
+
+    // 12 rows of tiles
+    for iy in 0..12 {
+        // read across for 32 tiles per row (256 pixels)
+        for ix in 0..32 {
+            let tile_index = (iy * 32) + ix;
+            let tile = cpu.mmu.gpu.vram.tile_set[tile_index];
+            draw_tile(
+                &mut buffer,
+                ix * 8,
+                iy * 8,
+                tile,
+                cpu.mmu.lcd.bg_palette,
+            );
+        }
+    }
+    buffer
+}
+
+pub fn next_frame(
+    mut cpu: &mut CPU,
+    instructions: &opcode::Fetcher,
+    sender: &SyncSender<Msg>,
+) {
+    loop {
+        let action = next_instruction(&mut cpu, &instructions);
+
+        match action {
+            // We've finished VBlank and have moved to OAM
+            // Now is the time to access DMA
+            // Halt the loop and start over
+            CPUAction::DMA => {
+                cpu.mmu.interrupt_flag.vblank = true;
+                break;
+            },
+            CPUAction::RenderLine => { cpu.render_line(); },
+            // GPU is ready to have the frame buffer updated
+            CPUAction::UpdateGPUBuffer => { cpu.mmu.gpu.update_buffer(); },
+
+            // In all other cases we just continue looping
+            CPUAction::Continue => {},
+            CPUAction::Debug => {
+                sender.send(Msg::Debug).unwrap();
+            }
+        }
+    }
+
+    sender.send(Msg::Frame(frame_info(cpu))).unwrap();
+}
+
+fn get_instruction<'a>(instructions: &'a opcode::Fetcher, opcode: u16) -> &'a Instruction {
+    instructions.fetch(opcode).unwrap()
+}
+
+fn next_instruction(cpu: &mut CPU, instructions: &opcode::Fetcher) -> CPUAction {
+    let action = match cpu.registers.halted {
+        HaltedState::None => {
+            if cpu.registers.ime.enabled() {
+                cpu.handle_interrupts();
+            }
+
+            if cpu.registers.ime.queued() {
+                cpu.registers.ime = IME::Enabled;
+            }
+
+            let opcode = cpu.get_opcode();
+            let instruction = get_instruction(instructions, opcode);
+            let args = cpu.get_arguments(instruction);
+            let result = instruction.call(cpu, args);
+
+            match cpu.mmu.lcd.advance_cycles(result.cycles) {
+                Some((Mode::VBlank, Mode::OAM)) => CPUAction::DMA,
+                Some((Mode::VRAM, Mode::HBlank)) => CPUAction::RenderLine,
+                Some((Mode::HBlank, Mode::VBlank)) => CPUAction::UpdateGPUBuffer,
+                _ => CPUAction::Continue,
+            }
+        },
+        HaltedState::Halted => {
+            if cpu.registers.ime.flagged_on() {
+                cpu.handle_interrupts();
+            }
+            cpu.advance_timer(4);
+            CPUAction::Continue
+        },
+        HaltedState::HaltedNoJump => {
+            if cpu.interrupt_available().is_some() {
+                cpu.registers.halted = HaltedState::None;
+            }
+
+            cpu.advance_timer(4);
+            CPUAction::Continue
+        }
+        // halt bug unaccounted for
+        HaltedState::HaltBug => {
+            CPUAction::Continue
+        }
+    };
+
+    if cpu.registers.watcher.triggered() {
+        CPUAction::Debug
+    } else {
+        action
+    }
+}
+

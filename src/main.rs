@@ -24,6 +24,8 @@ mod msg;
 mod instruction;
 
 use gameboy::Gameboy;
+use cpu::next_frame;
+use register::{RPair, Registers16};
 
 fn main() {
     let matches = clap_app!(anders_gameboy_emulator =>
@@ -37,21 +39,26 @@ fn main() {
         (@arg CONFIG: --config +takes_value "An optional configuration file to read.")
     ).get_matches();
 
-    let (sender, receiver) = sync_channel(0);
+    let (gamestate_sender, gamestate_receiver) = sync_channel(0);
 
     thread::spawn(move || {
         let mut gameboy = Gameboy::new(
             matches.value_of("BOOT_ROM").unwrap(),
             matches.value_of("GAME_ROM").unwrap(),
             matches.is_present("SKIP_BOOT"),
-            sender,
         ).unwrap();
 
+        /* test to make sure the watcher operates
+        gameboy.cpu.registers.watcher.set_break_point(
+            RPair::R16(Registers16::PC, 0x0100)
+        );
+        */
+
         loop {
-            gameboy.next_frame();
+            next_frame(&mut gameboy.cpu, &gameboy.instructions, &gamestate_sender);
         }
     });
 
-    let mut display = sdl::SDL::new(receiver).unwrap();
+    let mut display = sdl::SDL::new(gamestate_receiver).unwrap();
     display.start();
 }

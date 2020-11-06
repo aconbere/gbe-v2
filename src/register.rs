@@ -228,6 +228,8 @@ impl Registers {
             RPair::R16(Registers16::SP, v) => self.sp = v,
             RPair::R16(Registers16::PC, v) => self.pc = v,
         }
+
+        self.watcher.check(r);
     }
 
     pub fn set8(&mut self, r: Registers8, v: u8) {
