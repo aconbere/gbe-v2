@@ -10,7 +10,7 @@ use sdl2::rect::Rect;
 use std::sync::mpsc::Receiver;
 
 use crate::shade::Shade;
-use crate::msg::{Msg, Frame, TileMap};
+use crate::msg::{Output, TileMap};
 
 use anyhow;
 use rate_limiter::RateLimiter;
@@ -28,11 +28,11 @@ pub struct SDL {
     state: State,
     canvas: Canvas<Window>,
     sdl_context: sdl2::Sdl,
-    frames_channel: Receiver<Msg>,
+    frames_channel: Receiver<Output>,
 }
 
 impl SDL {
-    pub fn new(frames_channel: Receiver<Msg>) -> anyhow::Result<SDL> {
+    pub fn new(frames_channel: Receiver<Output>) -> anyhow::Result<SDL> {
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
 
@@ -139,14 +139,14 @@ impl SDL {
                     let msg = self.frames_channel.recv().unwrap();
 
                     match msg {
-                        Msg::Frame(frame) => {
+                        Output::Frame(frame) => {
                             self.draw_frame(0,0, frame.main);
                             self.draw_tile_map(160*SCALE as i32, 0, frame.tile_map);
                             self.draw_tiles(160*SCALE as i32, 256, frame.tiles);
 
                             self.canvas.present();
                         },
-                        Msg::Debug => {
+                        Output::Debug => {
                         }
                     }
                 }

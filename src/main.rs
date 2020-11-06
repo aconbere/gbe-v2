@@ -39,7 +39,8 @@ fn main() {
         (@arg CONFIG: --config +takes_value "An optional configuration file to read.")
     ).get_matches();
 
-    let (gamestate_sender, gamestate_receiver) = sync_channel(0);
+    let (output_sender, output_receiver) = sync_channel(0);
+    let (input_sender, input_receiver) = sync_channel(0);
 
     thread::spawn(move || {
         let mut gameboy = Gameboy::new(
@@ -55,10 +56,15 @@ fn main() {
         */
 
         loop {
-            next_frame(&mut gameboy.cpu, &gameboy.instructions, &gamestate_sender);
+            next_frame(
+                &mut gameboy.cpu,
+                &gameboy.instructions,
+                &output_sender,
+                &input_receiver
+            );
         }
     });
 
-    let mut display = sdl::SDL::new(gamestate_receiver).unwrap();
+    let mut display = sdl::SDL::new(output_receiver).unwrap();
     display.start();
 }

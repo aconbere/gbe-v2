@@ -8,12 +8,12 @@ use crate::device::interrupt::Interrupt;
 use crate::framebuffer;
 use crate::tile::Tile;
 use crate::palette::Palette;
-use crate::msg::Msg;
+use crate::msg::{Input, Output};
 
 use crate::instruction::{opcode, Instruction};
 use crate::instruction::helper::call;
 
-use std::sync::mpsc::SyncSender;
+use std::sync::mpsc::{SyncSender, Receiver};
 
 enum CPUAction {
     DMA,
@@ -236,7 +236,8 @@ fn draw_tiles(cpu: &CPU) -> [[Shade;256];96] {
 pub fn next_frame(
     mut cpu: &mut CPU,
     instructions: &opcode::Fetcher,
-    sender: &SyncSender<Msg>,
+    output: &SyncSender<Output>,
+    input: &Receiver<Input>,
 ) {
     loop {
         let action = next_instruction(&mut cpu, &instructions);
@@ -256,12 +257,12 @@ pub fn next_frame(
             // In all other cases we just continue looping
             CPUAction::Continue => {},
             CPUAction::Debug => {
-                sender.send(Msg::Debug).unwrap();
+                output.send(Output::Debug).unwrap();
             }
         }
     }
 
-    sender.send(Msg::Frame(frame_info(cpu))).unwrap();
+    output.send(Output::Frame(frame_info(cpu))).unwrap();
 }
 
 fn get_instruction<'a>(instructions: &'a opcode::Fetcher, opcode: u16) -> &'a Instruction {

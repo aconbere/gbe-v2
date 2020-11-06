@@ -2,9 +2,14 @@ use crate::shade::Shade;
 use crate::pixel::Pixel;
 use crate::palette::Palette;
 
-pub enum Msg {
+pub enum Output {
     Frame(Box<Frame>),
     Debug,
+}
+
+pub enum Input {
+    Debug,
+    Button,
 }
 
 pub struct TileMap {
