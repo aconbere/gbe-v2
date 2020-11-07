@@ -13,7 +13,7 @@ use crate::msg::{Input, Output, Debugger};
 use crate::instruction::{opcode, Instruction};
 use crate::instruction::helper::call;
 
-use std::sync::mpsc::{Sender, SyncSender, Receiver};
+use std::sync::mpsc::{Sender, Receiver};
 
 enum CPUAction {
     DMA,
