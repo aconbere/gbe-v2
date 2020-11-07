@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate clap;
 
-use std::sync::mpsc::sync_channel;
+use std::sync::mpsc::channel;
 use std::thread;
 
 mod sdl;
@@ -39,8 +39,8 @@ fn main() {
         (@arg CONFIG: --config +takes_value "An optional configuration file to read.")
     ).get_matches();
 
-    let (output_sender, output_receiver) = sync_channel(0);
-    let (input_sender, input_receiver) = sync_channel(0);
+    let (output_sender, output_receiver) = channel();
+    let (input_sender, input_receiver) = channel();
 
     thread::spawn(move || {
         let mut gameboy = Gameboy::new(
@@ -49,11 +49,10 @@ fn main() {
             matches.is_present("SKIP_BOOT"),
         ).unwrap();
 
-        /* test to make sure the watcher operates
+        // test to make sure the watcher operates
         gameboy.cpu.registers.watcher.set_break_point(
             RPair::R16(Registers16::PC, 0x0100)
         );
-        */
 
         loop {
             next_frame(
@@ -65,6 +64,6 @@ fn main() {
         }
     });
 
-    let mut display = sdl::SDL::new(output_receiver).unwrap();
+    let mut display = sdl::SDL::new(output_receiver, input_sender).unwrap();
     display.start();
 }

@@ -8,8 +8,14 @@ pub enum Output {
 }
 
 pub enum Input {
-    Debug,
+    Debug(Debugger),
     Button,
+}
+
+pub enum Debugger {
+    Continue,
+    // Next,
+    // Step,
 }
 
 pub struct TileMap {

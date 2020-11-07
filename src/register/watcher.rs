@@ -113,6 +113,10 @@ impl Watcher {
         return self.triggered
     }
 
+    pub fn clear_trigger(&mut self) {
+        self.triggered = false;
+    }
+
     pub fn clear(&mut self) {
         self.breaks.clear();
         self.triggered = false;

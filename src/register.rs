@@ -6,15 +6,6 @@ pub mod watcher;
 
 use watcher::Watcher;
 
-
-#[derive(PartialEq, Debug, Clone, Copy)]
-pub enum HaltedState {
-    Halted,
-    HaltedNoJump,
-    HaltBug,
-    None
-}
-
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum IME {
     Enabled,
@@ -138,7 +129,6 @@ pub struct Registers {
     pc: u16,
     pub ime: IME,
     pub stopped: bool,
-    pub halted: HaltedState,
     pub watcher: Watcher,
 }
 
@@ -157,7 +147,6 @@ impl Registers {
             pc: 0x0000,
             ime: IME::Disabled,
             stopped: false,
-            halted: HaltedState::None,
             watcher: Watcher::new(),
         };
     }
@@ -176,7 +165,6 @@ impl Registers {
             pc: 0x0100,
             ime: IME::Disabled,
             stopped: false,
-            halted: HaltedState::None,
             watcher: Watcher::new(),
         };
     }

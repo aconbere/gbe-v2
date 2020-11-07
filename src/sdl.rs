@@ -7,10 +7,10 @@ use sdl2::pixels::Color;
 use sdl2::rect::Point;
 use sdl2::rect::Rect;
 
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Sender, Receiver};
 
 use crate::shade::Shade;
-use crate::msg::{Output, TileMap};
+use crate::msg::{Output, Input, TileMap, Debugger};
 
 use anyhow;
 use rate_limiter::RateLimiter;
@@ -28,11 +28,15 @@ pub struct SDL {
     state: State,
     canvas: Canvas<Window>,
     sdl_context: sdl2::Sdl,
-    frames_channel: Receiver<Output>,
+    output_receiver: Receiver<Output>,
+    input_sender: Sender<Input>,
 }
 
 impl SDL {
-    pub fn new(frames_channel: Receiver<Output>) -> anyhow::Result<SDL> {
+    pub fn new(
+        output_receiver: Receiver<Output>,
+        input_sender: Sender<Input>,
+    ) -> anyhow::Result<SDL> {
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
 
@@ -50,7 +54,8 @@ impl SDL {
             state: State::Running,
             canvas: canvas,
             sdl_context: sdl_context,
-            frames_channel: frames_channel,
+            output_receiver: output_receiver,
+            input_sender: input_sender,
         })
     }
 
@@ -136,18 +141,18 @@ impl SDL {
         'mainloop: loop {
             match self.state {
                 State::Running => {
-                    let msg = self.frames_channel.recv().unwrap();
-
-                    match msg {
-                        Output::Frame(frame) => {
+                    match self.output_receiver.try_recv() {
+                        Ok(Output::Frame(frame)) => {
                             self.draw_frame(0,0, frame.main);
                             self.draw_tile_map(160*SCALE as i32, 0, frame.tile_map);
                             self.draw_tiles(160*SCALE as i32, 256, frame.tiles);
 
                             self.canvas.present();
-                        },
-                        Output::Debug => {
                         }
+                        Ok(Output::Debug) => {
+                            println!("SDL DEBUG");
+                        }
+                        Err(_) => {}
                     }
                 }
             }
@@ -160,6 +165,13 @@ impl SDL {
                 match event {
                     Event::Quit { .. } | Event::KeyDown { keycode: Option::Some(Keycode::Escape), ..  } => {
                         break 'mainloop
+                    },
+                    Event::KeyDown { keycode: Option::Some(Keycode::Space), ..  } => {
+                        println!("Sending Debug::Continue");
+                        self.input_sender.send(Input::Debug(Debugger::Continue)).unwrap();
+                    },
+                    Event::KeyDown { keycode: Option::Some(Keycode::Left), ..  } => {
+                        // self.input_sender.send(Input::Debug(Debugger::Continue)).unwrap();
                     },
                     _ => {}
                 }

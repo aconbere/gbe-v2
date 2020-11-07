@@ -1,6 +1,6 @@
 use crate::shade::Shade;
 use crate::msg::{Frame, TileMap};
-use crate::register::{Registers, Registers16, IME, HaltedState};
+use crate::register::{Registers, Registers16, IME};
 use crate::mmu::MMU;
 use crate::bytes;
 use crate::device::lcd::Mode;
@@ -8,12 +8,12 @@ use crate::device::interrupt::Interrupt;
 use crate::framebuffer;
 use crate::tile::Tile;
 use crate::palette::Palette;
-use crate::msg::{Input, Output};
+use crate::msg::{Input, Output, Debugger};
 
 use crate::instruction::{opcode, Instruction};
 use crate::instruction::helper::call;
 
-use std::sync::mpsc::{SyncSender, Receiver};
+use std::sync::mpsc::{Sender, SyncSender, Receiver};
 
 enum CPUAction {
     DMA,
@@ -23,23 +23,30 @@ enum CPUAction {
     Debug,
 }
 
+#[derive(PartialEq, Debug, Clone, Copy)]
+pub enum State {
+    Running,
+    Halted,
+    HaltedNoJump,
+    HaltedBug,
+    Debug,
+}
+
+
 pub struct CPU {
     pub mmu: MMU,
     pub registers: Registers,
-
+    pub state: State,
     pub buffer: framebuffer::Buffer,
 }
 
 impl CPU {
-    pub fn new(
-        registers: Registers,
-        mmu: MMU,
-    ) -> CPU {
-
+    pub fn new(registers: Registers, mmu: MMU) -> CPU {
         CPU {
             mmu: mmu,
             registers: registers,
             buffer: framebuffer::new(),
+            state: State::Running,
         }
     }
 
@@ -87,6 +94,7 @@ impl CPU {
         self.mmu.set(address, value);
     }
 
+    /* TODO This should move to the MMU */
     fn interrupt_available(&self) -> Option<Interrupt> {
         let _if = self.mmu.interrupt_flag;
         let _ie = self.mmu.interrupt_enable;
@@ -110,31 +118,31 @@ impl CPU {
         match self.interrupt_available() {
             Some(Interrupt::VBlank) => {
                 self.mmu.interrupt_flag.vblank = false;
-                self.registers.halted = HaltedState::None;
+                self.state = State::Running;
                 self.registers.ime = IME::Disabled;
                 call(self, 0x40);
             }
             Some(Interrupt::LCDStat) => {
                 self.mmu.interrupt_flag.lcd_stat = false;
-                self.registers.halted = HaltedState::None;
+                self.state = State::Running;
                 self.registers.ime = IME::Disabled;
                 call(self, 0x48);
             }
             Some(Interrupt::Timer) => {
                 self.mmu.interrupt_flag.timer = false;
-                self.registers.halted = HaltedState::None;
+                self.state = State::Running;
                 self.registers.ime = IME::Disabled;
                 call(self, 0x50);
             }
             Some(Interrupt::Serial) => {
                 self.mmu.interrupt_flag.serial = false;
-                self.registers.halted = HaltedState::None;
+                self.state = State::Running;
                 self.registers.ime = IME::Disabled;
                 call(self, 0x58);
             }
             Some(Interrupt::Joypad) => {
                 self.mmu.interrupt_flag.joypad = false;
-                self.registers.halted = HaltedState::None;
+                self.state = State::Running;
                 self.registers.ime = IME::Disabled;
                 call(self, 0x60);
             }
@@ -155,14 +163,14 @@ impl CPU {
 
     pub fn halt(&mut self) {
         if self.registers.ime.enabled() {
-            self.registers.halted = HaltedState::Halted;
+            self.state = State::Halted;
         } else {
             let _if = u8::from(self.mmu.interrupt_flag);
             let _ie = u8::from(self.mmu.interrupt_enable);
             if (_if & _ie & 0x1F) == 0 {
-                self.registers.halted = HaltedState::HaltedNoJump;
+                self.state = State::HaltedNoJump;
             } else {
-                self.registers.halted = HaltedState::HaltBug;
+                self.state = State::HaltedBug;
             }
 
         }
@@ -236,29 +244,46 @@ fn draw_tiles(cpu: &CPU) -> [[Shade;256];96] {
 pub fn next_frame(
     mut cpu: &mut CPU,
     instructions: &opcode::Fetcher,
-    output: &SyncSender<Output>,
+    output: &Sender<Output>,
     input: &Receiver<Input>,
 ) {
     loop {
-        let action = next_instruction(&mut cpu, &instructions);
+        if cpu.state != State::Debug {
+            let action = next_instruction(&mut cpu, &instructions);
 
-        match action {
-            // We've finished VBlank and have moved to OAM
-            // Now is the time to access DMA
-            // Halt the loop and start over
-            CPUAction::DMA => {
-                cpu.mmu.interrupt_flag.vblank = true;
-                break;
-            },
-            CPUAction::RenderLine => { cpu.render_line(); },
-            // GPU is ready to have the frame buffer updated
-            CPUAction::UpdateGPUBuffer => { cpu.mmu.gpu.update_buffer(); },
+            match action {
+                // We've finished VBlank and have moved to OAM
+                // Now is the time to access DMA
+                // Halt the loop and start over
+                CPUAction::DMA => {
+                    cpu.mmu.interrupt_flag.vblank = true;
+                    break;
+                },
+                CPUAction::RenderLine => { cpu.render_line(); },
+                // GPU is ready to have the frame buffer updated
+                CPUAction::UpdateGPUBuffer => { cpu.mmu.gpu.update_buffer(); },
 
-            // In all other cases we just continue looping
-            CPUAction::Continue => {},
-            CPUAction::Debug => {
-                output.send(Output::Debug).unwrap();
+                // In all other cases we just continue looping
+                CPUAction::Continue => {},
+                CPUAction::Debug => {
+                    println!("CPU: Sending Debug");
+                    output.send(Output::Debug).unwrap();
+                    break
+                }
             }
+
+        }
+
+        match input.try_recv() {
+            Ok(Input::Debug(Debugger::Continue)) => {
+                println!("Received Debugger:Continue");
+                cpu.state = State::Running;
+                cpu.registers.watcher.clear_trigger();
+            }
+            Ok(Input::Button) => {
+                println!("Got button push");
+            }
+            Err(_) => {}
         }
     }
 
@@ -270,8 +295,8 @@ fn get_instruction<'a>(instructions: &'a opcode::Fetcher, opcode: u16) -> &'a In
 }
 
 fn next_instruction(cpu: &mut CPU, instructions: &opcode::Fetcher) -> CPUAction {
-    let action = match cpu.registers.halted {
-        HaltedState::None => {
+    let action = match cpu.state {
+        State::Running => {
             if cpu.registers.ime.enabled() {
                 cpu.handle_interrupts();
             }
@@ -292,28 +317,33 @@ fn next_instruction(cpu: &mut CPU, instructions: &opcode::Fetcher) -> CPUAction 
                 _ => CPUAction::Continue,
             }
         },
-        HaltedState::Halted => {
+        State::Halted => {
             if cpu.registers.ime.flagged_on() {
                 cpu.handle_interrupts();
             }
             cpu.advance_timer(4);
             CPUAction::Continue
         },
-        HaltedState::HaltedNoJump => {
+        State::HaltedNoJump => {
             if cpu.interrupt_available().is_some() {
-                cpu.registers.halted = HaltedState::None;
+                cpu.state = State::Running;
             }
 
             cpu.advance_timer(4);
             CPUAction::Continue
         }
+        // In debug state we just loop
+        State::Debug => {
+            CPUAction::Continue
+        }
         // halt bug unaccounted for
-        HaltedState::HaltBug => {
+        State::HaltedBug => {
             CPUAction::Continue
         }
     };
 
     if cpu.registers.watcher.triggered() {
+        cpu.state = State::Debug;
         CPUAction::Debug
     } else {
         action
