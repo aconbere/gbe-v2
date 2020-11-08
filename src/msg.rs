@@ -2,8 +2,8 @@ use crate::shade::Shade;
 use crate::pixel::Pixel;
 use crate::palette::Palette;
 
+
 pub enum Output {
-    Frame(Box<Frame>),
     Debug,
 }
 
@@ -14,8 +14,9 @@ pub enum Input {
 
 pub enum Debugger {
     Continue,
-    // Next,
-    // Step,
+    Pause,
+    Next,
+    Step,
 }
 
 pub struct TileMap {

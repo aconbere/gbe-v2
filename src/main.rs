@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate clap;
 
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel, sync_channel};
 use std::thread;
 
 mod sdl;
@@ -39,6 +39,7 @@ fn main() {
         (@arg CONFIG: --config +takes_value "An optional configuration file to read.")
     ).get_matches();
 
+    let (frame_sender, frame_receiver) = sync_channel(0);
     let (output_sender, output_receiver) = channel();
     let (input_sender, input_receiver) = channel();
 
@@ -54,16 +55,19 @@ fn main() {
             RPair::R16(Registers16::PC, 0x0100)
         );
 
+        // TODO Async has made the cpu run faster than the display
+        // These need to be synced somehow
         loop {
             next_frame(
                 &mut gameboy.cpu,
                 &gameboy.instructions,
+                &frame_sender,
                 &output_sender,
                 &input_receiver
             );
         }
     });
 
-    let mut display = sdl::SDL::new(output_receiver, input_sender).unwrap();
+    let mut display = sdl::SDL::new(frame_receiver, output_receiver, input_sender).unwrap();
     display.start();
 }

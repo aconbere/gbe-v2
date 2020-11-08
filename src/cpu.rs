@@ -13,7 +13,7 @@ use crate::msg::{Input, Output, Debugger};
 use crate::instruction::{opcode, Instruction};
 use crate::instruction::helper::call;
 
-use std::sync::mpsc::{Sender, Receiver};
+use std::sync::mpsc::{SyncSender, Sender, Receiver};
 
 enum CPUAction {
     DMA,
@@ -244,50 +244,67 @@ fn draw_tiles(cpu: &CPU) -> [[Shade;256];96] {
 pub fn next_frame(
     mut cpu: &mut CPU,
     instructions: &opcode::Fetcher,
+    frames: &SyncSender<Box<Frame>>,
     output: &Sender<Output>,
     input: &Receiver<Input>,
 ) {
     loop {
-        if cpu.state != State::Debug {
-            let action = next_instruction(&mut cpu, &instructions);
-
-            match action {
-                // We've finished VBlank and have moved to OAM
-                // Now is the time to access DMA
-                // Halt the loop and start over
-                CPUAction::DMA => {
-                    cpu.mmu.interrupt_flag.vblank = true;
-                    break;
-                },
-                CPUAction::RenderLine => { cpu.render_line(); },
-                // GPU is ready to have the frame buffer updated
-                CPUAction::UpdateGPUBuffer => { cpu.mmu.gpu.update_buffer(); },
-
-                // In all other cases we just continue looping
-                CPUAction::Continue => {},
-                CPUAction::Debug => {
-                    println!("CPU: Sending Debug");
-                    output.send(Output::Debug).unwrap();
-                    break
+        match cpu.state {
+            State::Debug => {
+                match input.try_recv() {
+                    Ok(Input::Debug(Debugger::Continue)) => {
+                        println!("Received Debugger::Continue");
+                        cpu.state = State::Running;
+                        cpu.registers.watcher.clear_trigger();
+                    }
+                    Ok(Input::Debug(Debugger::Next)) => {
+                        println!("Received Debugger::Next");
+                    }
+                    Ok(Input::Debug(Debugger::Step)) => {
+                        println!("Received Debugger::Step");
+                    }
+                    Ok(Input::Button) => {
+                        println!("Got button push");
+                    }
+                    _ => {}
                 }
             }
+            _ => {
+                let action = next_instruction(&mut cpu, &instructions);
 
-        }
+                match action {
+                    // We've finished VBlank and have moved to OAM
+                    // Now is the time to access DMA
+                    // Halt the loop and start over
+                    CPUAction::DMA => {
+                        cpu.mmu.interrupt_flag.vblank = true;
+                        frames.send(frame_info(cpu)).unwrap();
+                        break;
+                    },
+                    CPUAction::RenderLine => { cpu.render_line(); },
+                    // GPU is ready to have the frame buffer updated
+                    CPUAction::UpdateGPUBuffer => { cpu.mmu.gpu.update_buffer(); },
 
-        match input.try_recv() {
-            Ok(Input::Debug(Debugger::Continue)) => {
-                println!("Received Debugger:Continue");
-                cpu.state = State::Running;
-                cpu.registers.watcher.clear_trigger();
+                    // In all other cases we just continue looping
+                    CPUAction::Continue => {},
+                    CPUAction::Debug => {
+                        println!("CPU: Sending Debug");
+                        output.send(Output::Debug).unwrap();
+                        break
+                    }
+                }
+
+                match input.try_recv() {
+                    Ok(Input::Debug(Debugger::Pause)) => {
+                        println!("Received Debugger::Pause");
+                        cpu.state = State::Debug;
+                    }
+                    _ => {}
+                }
             }
-            Ok(Input::Button) => {
-                println!("Got button push");
-            }
-            Err(_) => {}
         }
     }
 
-    output.send(Output::Frame(frame_info(cpu))).unwrap();
 }
 
 fn get_instruction<'a>(instructions: &'a opcode::Fetcher, opcode: u16) -> &'a Instruction {
